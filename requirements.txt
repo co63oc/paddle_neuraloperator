@@ -1,0 +1,8 @@
+wandb
+ruamel.yaml
+configmypy
+tensorly
+matplotlib
+opt-einsum
+h5py
+zarr
