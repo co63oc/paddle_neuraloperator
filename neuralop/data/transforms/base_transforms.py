@@ -1,11 +1,12 @@
-import paddle
 from abc import abstractmethod
 from typing import List
+
+import paddle
 
 
 class Transform(paddle.nn.Layer):
     """
-    Applies transforms or inverse transforms to 
+    Applies transforms or inverse transforms to
     model inputs or outputs, respectively
     """
 
@@ -34,7 +35,6 @@ class Transform(paddle.nn.Layer):
 
 
 class CompositeTransform(Transform):
-
     def __init__(self, transforms: List[Transform]):
         """Composite transform composes a list of
         Transforms into one Transform object.
@@ -61,8 +61,8 @@ class CompositeTransform(Transform):
         return data_dict
 
     def to(self, device):
-        self.transforms = [t.to(device) for t in self.transforms if hasattr
-            (t, 'to')]
+        # all Transforms are required to implement .to()
+        self.transforms = [t.to(device) for t in self.transforms if hasattr(t, "to")]
         return self
 
 
@@ -90,6 +90,7 @@ class DictTransform(Transform):
         self.output_fields = transform_dict.keys()
         self.input_mappings = input_mappings
         self.return_mappings = return_mappings
+
         assert transform_dict.keys() == input_mappings.keys()
         if self.return_mappings:
             assert transform_dict.keys() == return_mappings.keys()
@@ -98,39 +99,41 @@ class DictTransform(Transform):
         """
         Parameters
         ----------
-        tensor_dict : Torch.tensor dict
+        tensor_dict : paddle.Tensor dict
             model output, indexed according to self.mappings
         """
         out = paddle.zeros_like(x=tensor_dict)
+
         for field, indices in self.input_mappings.items():
             encoded = self.transforms[field].transform(tensor_dict[indices])
             if self.return_mappings:
                 encoded = encoded[self.return_mappings[field]]
             out[indices] = encoded
+
         return out
 
     def inverse_transform(self, x):
         """
         Parameters
         ----------
-        x : Torch.tensor
+        x : paddle.Tensor
             model output, indexed according to self.mappings
         """
         out = paddle.zeros_like(x=x)
         for field, indices in self.input_mappings.items():
             decoded = self.transforms[field].inverse_transform(x[indices])
-            print(f'decoded.shape={tuple(decoded.shape)!r}')
+            print(f"decoded.shape={tuple(decoded.shape)!r}")
             if self.return_mappings:
                 decoded = decoded[self.return_mappings[field]]
             out[indices] = decoded
+
         return out
 
     def cpu(self):
         self.encoders = {k: v.cpu() for k, v in self.transforms.items()}
 
     def cuda(self):
-        self.encoders = {k: v.cuda(blocking=True) for k, v in self.
-            transforms.items()}
+        self.encoders = {k: v.cuda(blocking=True) for k, v in self.transforms.items()}
 
     def to(self, device):
         self.encoders = {k: v.to(device) for k, v in self.transforms.items()}

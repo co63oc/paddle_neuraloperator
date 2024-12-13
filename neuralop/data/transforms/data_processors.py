@@ -1,11 +1,12 @@
+from abc import ABCMeta
+from abc import abstractmethod
+
 import paddle
-from abc import ABCMeta, abstractmethod
-from neuralop.training.patching import MultigridPatching2D
+
 from neuralop.training.patching import MultigridPatching2D
 
 
 class DataProcessor(paddle.nn.Layer, metaclass=ABCMeta):
-
     def __init__(self):
         """DataProcessor exposes functionality for pre-
         and post-processing data during training or inference.
@@ -14,7 +15,7 @@ class DataProcessor(paddle.nn.Layer, metaclass=ABCMeta):
         that the following methods are implemented:
 
         - to(device): load necessary information to device, in keeping
-            with PyTorch convention
+            with Paddle convention
         - preprocess(data): processes data from a new batch before being
             put through a model's forward pass
         - postprocess(out): processes the outputs of a model's forward pass
@@ -38,12 +39,17 @@ class DataProcessor(paddle.nn.Layer, metaclass=ABCMeta):
     def postprocess(self, x):
         pass
 
+    # default wrap method
     def wrap(self, model):
         self.model = model
         return self
 
-    def train(self, val: bool=True):
-        super().train(val)
+    # default train and eval methods
+    def train(self, val: bool = True):
+        if val:
+            super().train()
+        else:
+            super().eval()
         if self.model is not None:
             self.model.train()
 
@@ -58,7 +64,7 @@ class DataProcessor(paddle.nn.Layer, metaclass=ABCMeta):
 
 
 class DefaultDataProcessor(DataProcessor):
-    """DefaultDataProcessor is a simple processor 
+    """DefaultDataProcessor is a simple processor
     to pre/post process data before training/inferencing a model.
     """
 
@@ -74,7 +80,7 @@ class DefaultDataProcessor(DataProcessor):
         super().__init__()
         self.in_normalizer = in_normalizer
         self.out_normalizer = out_normalizer
-        self.device = 'cpu'
+        self.device = paddle.CPUPlace()
         self.model = None
 
     def to(self, device):
@@ -105,14 +111,17 @@ class DefaultDataProcessor(DataProcessor):
         dict
             preprocessed data_dict
         """
-        x = data_dict['x'].to(self.device)
-        y = data_dict['y'].to(self.device)
+        x = data_dict["x"].to(self.device)
+        y = data_dict["y"].to(self.device)
+
         if self.in_normalizer is not None:
             x = self.in_normalizer.transform(x)
         if self.out_normalizer is not None and self.training:
             y = self.out_normalizer.transform(y)
-        data_dict['x'] = x
-        data_dict['y'] = y
+
+        data_dict["x"] = x
+        data_dict["y"] = y
+
         return data_dict
 
     def postprocess(self, output, data_dict):
@@ -124,7 +133,7 @@ class DefaultDataProcessor(DataProcessor):
 
         Parameters
         ----------
-        output : torch.Tensor
+        output : paddle.Tensor
             raw model outputs
         data_dict : dict
             dictionary containing single batch
@@ -150,19 +159,26 @@ class DefaultDataProcessor(DataProcessor):
             postprocessed data for use in loss
         """
         data_dict = self.preprocess(data_dict)
-        output = self.model(data_dict['x'])
+        output = self.model(data_dict["x"])
         output = self.postprocess(output)
         return output, data_dict
 
 
 class IncrementalDataProcessor(paddle.nn.Layer):
-
-    def __init__(self, in_normalizer=None, out_normalizer=None, device=
-        'cpu', subsampling_rates=[2, 1], dataset_resolution=16,
-        dataset_indices=[2, 3], epoch_gap=10, verbose=False):
+    def __init__(
+        self,
+        in_normalizer=None,
+        out_normalizer=None,
+        device=paddle.CPUPlace(),
+        subsampling_rates=[2, 1],
+        dataset_resolution=16,
+        dataset_indices=[2, 3],
+        epoch_gap=10,
+        verbose=False,
+    ):
         """An incremental processor to pre/post process data before training/inferencing a model
         In particular this processor first regularizes the input resolution based on the sub_list and dataset_indices
-        in the spatial domain based on a fixed number of epochs. We incrementally increase the resolution like done 
+        in the spatial domain based on a fixed number of epochs. We incrementally increase the resolution like done
         in curriculum learning to train the model. This is useful for training models on large datasets with high
         resolution data.
 
@@ -195,13 +211,15 @@ class IncrementalDataProcessor(paddle.nn.Layer):
         self.epoch_gap = epoch_gap
         self.verbose = verbose
         self.epoch = 0
+
         self.current_index = 0
         self.current_logged_epoch = 0
         self.current_sub = self.index_to_sub_from_table(self.current_index)
         self.current_res = int(self.dataset_resolution / self.current_sub)
-        print(f'Original Incre Res: change index to {self.current_index}')
-        print(f'Original Incre Res: change sub to {self.current_sub}')
-        print(f'Original Incre Res: change res to {self.current_res}')
+
+        print(f"Original Incre Res: change index to {self.current_index}")
+        print(f"Original Incre Res: change sub to {self.current_sub}")
+        print(f"Original Incre Res: change res to {self.current_res}")
 
     def to(self, device):
         if self.in_normalizer is not None:
@@ -212,28 +230,29 @@ class IncrementalDataProcessor(paddle.nn.Layer):
         return self
 
     def epoch_wise_res_increase(self, epoch):
-        if (epoch % self.epoch_gap == 0 and epoch != 0 and self.
-            current_logged_epoch != epoch):
+        # Update the current_sub and current_res values based on the epoch
+        if epoch % self.epoch_gap == 0 and epoch != 0 and self.current_logged_epoch != epoch:
             self.current_index += 1
             self.current_sub = self.index_to_sub_from_table(self.current_index)
             self.current_res = int(self.dataset_resolution / self.current_sub)
             self.current_logged_epoch = epoch
+
             if self.verbose:
-                print(f'Incre Res Update: change index to {self.current_index}'
-                    )
-                print(f'Incre Res Update: change sub to {self.current_sub}')
-                print(f'Incre Res Update: change res to {self.current_res}')
+                print(f"Incre Res Update: change index to {self.current_index}")
+                print(f"Incre Res Update: change sub to {self.current_sub}")
+                print(f"Incre Res Update: change res to {self.current_res}")
 
     def index_to_sub_from_table(self, index):
+        # Get the sub value from the sub_list based on the index
         if index >= len(self.sub_list):
             return self.sub_list[-1]
         else:
             return self.sub_list[index]
 
     def regularize_input_res(self, x, y):
+        # Regularize the input data based on the current_sub and dataset_name
         for idx in self.dataset_indices:
-            indexes = paddle.arange(start=0, end=x.shape[idx], step=self.
-                current_sub)
+            indexes = paddle.arange(start=0, end=x.shape[idx], step=self.current_sub)
             x = x.index_select(axis=idx, index=indexes)
             y = y.index_select(axis=idx, index=indexes)
         return x, y
@@ -244,45 +263,55 @@ class IncrementalDataProcessor(paddle.nn.Layer):
             return self.regularize_input_res(x, y)
 
     def preprocess(self, data_dict, batched=True):
-        x = data_dict['x'].to(self.device)
-        y = data_dict['y'].to(self.device)
+        x = data_dict["x"].to(self.device)
+        y = data_dict["y"].to(self.device)
+
         if self.in_normalizer is not None:
             x = self.in_normalizer.transform(x)
         if self.out_normalizer is not None and self.train:
             y = self.out_normalizer.transform(y)
+
         if self.training:
             x, y = self.step(epoch=self.epoch, x=x, y=y)
-        data_dict['x'] = x
-        data_dict['y'] = y
+
+        data_dict["x"] = x
+        data_dict["y"] = y
+
         return data_dict
 
     def postprocess(self, output, data_dict):
-        y = data_dict['y']
+        y = data_dict["y"]
         if self.out_normalizer and not self.train:
             output = self.out_normalizer.inverse_transform(output)
             y = self.out_normalizer.inverse_transform(y)
-        data_dict['y'] = y
+        data_dict["y"] = y
         return output, data_dict
 
     def forward(self, **data_dict):
         data_dict = self.preprocess(data_dict)
-        output = self.model(data_dict['x'])
+        output = self.model(data_dict["x"])
         output = self.postprocess(output)
         return output, data_dict
 
 
 class MGPatchingDataProcessor(DataProcessor):
-
-    def __init__(self, model: paddle.nn.Layer, levels: int,
-        padding_fraction: float, stitching: float, device: str='cpu',
-        in_normalizer=None, out_normalizer=None):
+    def __init__(
+        self,
+        model: paddle.nn.Layer,
+        levels: int,
+        padding_fraction: float,
+        stitching: float,
+        device: str = "cpu",
+        in_normalizer=None,
+        out_normalizer=None,
+    ):
         """MGPatchingDataProcessor
         Applies multigrid patching to inputs out-of-place
         with an optional output encoder/other data transform
 
         Parameters
         ----------
-        model: nn.Module
+        model: nn.Layer
             model to wrap in MultigridPatching2D
         levels : int
             mg_patching level parameter for MultigridPatching2D
@@ -301,9 +330,15 @@ class MGPatchingDataProcessor(DataProcessor):
         self.levels = levels
         self.padding_fraction = padding_fraction
         self.stitching = stitching
-        self.patcher = MultigridPatching2D(model=model, levels=self.levels,
-            padding_fraction=self.padding_fraction, stitching=self.stitching)
+        self.patcher = MultigridPatching2D(
+            model=model,
+            levels=self.levels,
+            padding_fraction=self.padding_fraction,
+            stitching=self.stitching,
+        )
         self.device = device
+
+        # set normalizers to none by default
         self.in_normalizer, self.out_normalizer = None, None
         if in_normalizer:
             self.in_normalizer = in_normalizer.to(self.device)
@@ -333,13 +368,12 @@ class MGPatchingDataProcessor(DataProcessor):
         batched: bool
             whether the first dimension of 'x', 'y' represents batching
         """
-        data_dict = {k: v.to(self.device) for k, v in data_dict.items() if
-            paddle.is_tensor(x=v)}
-        x, y = data_dict['x'], data_dict['y']
+        data_dict = {k: v.to(self.device) for k, v in data_dict.items() if paddle.is_tensor(x=v)}
+        x, y = data_dict["x"], data_dict["y"]
         if self.in_normalizer:
             x = self.in_normalizer.transform(x)
             y = self.out_normalizer.transform(y)
-        data_dict['x'], data_dict['y'] = self.patcher.patch(x, y)
+        data_dict["x"], data_dict["y"] = self.patcher.patch(x, y)
         return data_dict
 
     def postprocess(self, out, data_dict):
@@ -352,15 +386,18 @@ class MGPatchingDataProcessor(DataProcessor):
         data_dict: dict
             dictionary keyed with 'x', 'y' etc
             represents one batch of data input to a model
-        out: torch.Tensor
+        out: paddle.Tensor
             model output predictions
         """
-        y = data_dict['y']
+        y = data_dict["y"]
         out, y = self.patcher.unpatch(out, y)
+
         if self.out_normalizer:
             y = self.out_normalizer.inverse_transform(y)
             out = self.out_normalizer.inverse_transform(out)
-        data_dict['y'] = y
+
+        data_dict["y"] = y
+
         return out, data_dict
 
     def forward(self, **data_dict):

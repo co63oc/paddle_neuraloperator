@@ -1,48 +1,51 @@
-import sys
-sys.path.append('/nfs/github/paddle/paddle_neuraloperator/utils')
-import paddle_aux
-import paddle
 import os
-from typing import List, Optional, Union
 from math import prod
 from pathlib import Path
+from typing import List
+from typing import Optional
+from typing import Union
+
+import paddle
+
+from . import paddle_aux  # noqa
+
+# Only import wandb and use if installed
 wandb_available = False
 try:
     import wandb
+
     wandb_available = True
 except ModuleNotFoundError:
     wandb_available = False
-import warnings
+
+import warnings  # noqa
 
 
+# normalization, pointwise gaussian
 class UnitGaussianNormalizer:
-
     def __init__(self, x, eps=1e-05, reduce_dim=[0], verbose=True):
         super().__init__()
-        msg = (
-            'neuralop.utils.UnitGaussianNormalizer has been deprecated. Please use the newer neuralop.datasets.UnitGaussianNormalizer instead.'
-            )
+        msg = "neuralop.utils.UnitGaussianNormalizer has been deprecated. Please use the newer neuralop.datasets.UnitGaussianNormalizer instead."
         warnings.warn(msg, DeprecationWarning)
         n_samples, *shape = tuple(x.shape)
         self.sample_shape = shape
         self.verbose = verbose
         self.reduce_dim = reduce_dim
-        self.mean = paddle.mean(x=x, axis=reduce_dim, keepdim=True).squeeze(
-            axis=0)
-        self.std = paddle.std(x=x, axis=reduce_dim, keepdim=True).squeeze(axis
-            =0)
+        # x could be in shape of ntrain*n or ntrain*T*n or ntrain*n*T
+        self.mean = paddle.mean(x=x, axis=reduce_dim, keepdim=True).squeeze(axis=0)
+        self.std = paddle.std(x=x, axis=reduce_dim, keepdim=True).squeeze(axis=0)
         self.eps = eps
         if verbose:
             print(
-                f'UnitGaussianNormalizer init on {n_samples}, reducing over {reduce_dim}, samples of shape {shape}.'
-                )
-            print(
-                f'   Mean and std of shape {tuple(self.mean.shape)}, eps={eps}'
-                )
+                f"UnitGaussianNormalizer init on {n_samples}, reducing over {reduce_dim}, samples of shape {shape}."
+            )
+            print(f"   Mean and std of shape {tuple(self.mean.shape)}, eps={eps}")
 
     def encode(self, x):
+        # x = x.view(-1, *self.sample_shape)
         x -= self.mean
         x /= self.std + self.eps
+        # x = (x.view(-1, *self.sample_shape) - self.mean) / (self.std + self.eps)
         return x
 
     def decode(self, x, sample_idx=None):
@@ -56,6 +59,9 @@ class UnitGaussianNormalizer:
             if len(tuple(self.mean.shape)) > len(tuple(sample_idx[0].shape)):
                 std = self.std[:, sample_idx] + self.eps
                 mean = self.mean[:, sample_idx]
+        # x is in shape of batch*n or T*batch*n
+        # x = (x.view(self.sample_shape) * std) + mean
+        # x = x.view(-1, *self.sample_shape)
         x *= std
         x += mean
         return x
@@ -77,14 +83,13 @@ class UnitGaussianNormalizer:
 
 
 def count_model_params(model):
-    """Returns the total number of parameters of a PyTorch model
-    
+    """Returns the total number of parameters of a Paddle model
+
     Notes
     -----
     One complex number is counted as two parameters (we count real and imaginary parts)'
     """
-    return sum([(p.size * 2 if p.is_complex() else p.size) for p in model.
-        parameters()])
+    return sum([(p.size * 2 if p.is_complex() else p.size) for p in model.parameters()])
 
 
 def count_tensor_params(tensor, dims=None):
@@ -92,10 +97,10 @@ def count_tensor_params(tensor, dims=None):
 
     Parameters
     ----------
-    tensor : torch.tensor
+    tensor : paddle.Tensor
     dims : int list or None, default is None
         if not None, the dimensions to consider when counting the number of parameters (elements)
-    
+
     Notes
     -----
     One complex number is counted as two parameters (we count real and imaginary parts)'
@@ -110,30 +115,31 @@ def count_tensor_params(tensor, dims=None):
     return n_params
 
 
-def wandb_login(api_key_file='../config/wandb_api_key.txt', key=None):
+def wandb_login(api_key_file="../config/wandb_api_key.txt", key=None):
     if key is None:
         key = get_wandb_api_key(api_key_file)
     wandb.login(key=key)
 
 
-def set_wandb_api_key(api_key_file='../config/wandb_api_key.txt'):
+def set_wandb_api_key(api_key_file="../config/wandb_api_key.txt"):
     try:
-        os.environ['WANDB_API_KEY']
+        os.environ["WANDB_API_KEY"]
     except KeyError:
-        with open(api_key_file, 'r') as f:
+        with open(api_key_file, "r") as f:
             key = f.read()
-        os.environ['WANDB_API_KEY'] = key.strip()
+        os.environ["WANDB_API_KEY"] = key.strip()
 
 
-def get_wandb_api_key(api_key_file='../config/wandb_api_key.txt'):
+def get_wandb_api_key(api_key_file="../config/wandb_api_key.txt"):
     try:
-        return os.environ['WANDB_API_KEY']
+        return os.environ["WANDB_API_KEY"]
     except KeyError:
-        with open(api_key_file, 'r') as f:
+        with open(api_key_file, "r") as f:
             key = f.read()
         return key.strip()
 
 
+# Define the function to compute the spectrum
 def spectrum_2d(signal, n_observations, normalize=True):
     """This function computes the spectrum of a 2D signal using the Fast Fourier Transform (FFT).
 
@@ -159,23 +165,36 @@ def spectrum_2d(signal, n_observations, normalize=True):
     if normalize:
         signal = paddle.fft.fft2(x=signal)
     else:
->>>>>>        signal = torch.fft.rfft2(signal, s=(n_observations, n_observations),
-            normalized=False)
+        signal = paddle.fft.rfft2(signal, s=(n_observations, n_observations), normalized=False)
+    # 2d wavenumbers following Paddle fft convention
     k_max = n_observations // 2
-    wavenumers = paddle.concat(x=(paddle.arange(start=0, end=k_max, step=1),
-        paddle.arange(start=-k_max, end=0, step=1)), axis=0).tile(repeat_times
-        =[n_observations, 1])
-    k_x = wavenumers.transpose(perm=paddle_aux.transpose_aux_func(
-        wavenumers.ndim, 0, 1))
+    wavenumers = paddle.concat(
+        x=(
+            paddle.arange(start=0, end=k_max, step=1),
+            paddle.arange(start=-k_max, end=0, step=1),
+        ),
+        axis=0,
+    ).tile(repeat_times=[n_observations, 1])
+    k_x = wavenumers.transpose(perm=paddle_aux.transpose_aux_func(wavenumers.ndim, 0, 1))
     k_y = wavenumers
+    # Sum wavenumbers
     sum_k = paddle.abs(x=k_x) + paddle.abs(x=k_y)
     sum_k = sum_k
+    # Remove symmetric components from wavenumbers
     index = -1.0 * paddle.ones(shape=(n_observations, n_observations))
     k_max1 = k_max + 1
     index[0:k_max1, 0:k_max1] = sum_k[0:k_max1, 0:k_max1]
     spectrum = paddle.zeros(shape=(T, n_observations))
     for j in range(1, n_observations + 1):
->>>>>>        ind = torch.where(index == j)
+        # ind = torch.where(index == j)
+        k1_list = []
+        k2_list = []
+        for k1 in range(len(index)):
+            for k2 in range(len(index[k1])):
+                if index[k1][k2] == j:
+                    k1_list.append(k1)
+                    k2_list.append(k2)
+        ind = [k1_list, k2_list]
         spectrum[:, j - 1] = signal[:, ind[0], ind[1]].sum(axis=1).abs() ** 2
     spectrum = spectrum.mean(axis=0)
     return spectrum
@@ -184,9 +203,11 @@ def spectrum_2d(signal, n_observations, normalize=True):
 Number = Union[float, int]
 
 
-def validate_scaling_factor(scaling_factor: Union[None, Number, List[Number
-    ], List[List[Number]]], n_dim: int, n_layers: Optional[int]=None) ->Union[
-    None, List[float], List[List[float]]]:
+def validate_scaling_factor(
+    scaling_factor: Union[None, Number, List[Number], List[List[Number]]],
+    n_dim: int,
+    n_layers: Optional[int] = None,
+) -> Union[None, List[float], List[List[float]]]:
     """
     Parameters
     ----------
@@ -202,14 +223,23 @@ def validate_scaling_factor(scaling_factor: Union[None, Number, List[Number
         if n_layers is None:
             return [float(scaling_factor)] * n_dim
         return [[float(scaling_factor)] * n_dim] * n_layers
-    if isinstance(scaling_factor, list) and len(scaling_factor) > 0 and all([
-        isinstance(s, (float, int)) for s in scaling_factor]):
+    if (
+        isinstance(scaling_factor, list)
+        and len(scaling_factor) > 0
+        and all([isinstance(s, (float, int)) for s in scaling_factor])
+    ):
         return [([float(s)] * n_dim) for s in scaling_factor]
-    if isinstance(scaling_factor, list) and len(scaling_factor) > 0 and all([
-        isinstance(s, (float, int)) for s in scaling_factor]):
+    if (
+        isinstance(scaling_factor, list)
+        and len(scaling_factor) > 0
+        and all([isinstance(s, (float, int)) for s in scaling_factor])
+    ):
         return [([float(s)] * n_dim) for s in scaling_factor]
-    if isinstance(scaling_factor, list) and len(scaling_factor) > 0 and all([
-        isinstance(s, list) for s in scaling_factor]):
+    if (
+        isinstance(scaling_factor, list)
+        and len(scaling_factor) > 0
+        and all([isinstance(s, list) for s in scaling_factor])
+    ):
         s_sub_pass = True
         for s in scaling_factor:
             if all([isinstance(s_sub, (int, float)) for s_sub in s]):
@@ -222,13 +252,15 @@ def validate_scaling_factor(scaling_factor: Union[None, Number, List[Number
 
 
 def compute_rank(tensor):
->>>>>>    rank = torch.matrix_rank(tensor)
+    # Compute the matrix rank of a tensor
+    rank = paddle.linalg.matrix_rank(tensor)
     return rank
 
 
 def compute_stable_rank(tensor):
+    # Compute the stable rank of a tensor
     tensor = tensor.detach()
-    fro_norm = paddle.linalg.norm(x=tensor, p='fro') ** 2
+    fro_norm = paddle.linalg.norm(x=tensor, p="fro") ** 2
     l2_norm = paddle.linalg.norm(x=tensor, p=2) ** 2
     rank = fro_norm / l2_norm
     rank = rank
@@ -236,6 +268,8 @@ def compute_stable_rank(tensor):
 
 
 def compute_explained_variance(frequency_max, s):
+    # Compute the explained variance based on frequency_max and singular
+    # values (s)
     s_current = s.clone()
     s_current[frequency_max:] = 0
     return 1 - paddle.var(x=s - s_current) / paddle.var(x=s)

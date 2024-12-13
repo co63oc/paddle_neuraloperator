@@ -18,7 +18,7 @@ default: &DEFAULT
     norm: None
     skip: 'soft-gating'
     implementation: 'factorized'
-    
+
     use_channel_mlp: 1
     channel_mlp_expansion: 0.5
     channel_mlp_dropout: 0
@@ -31,7 +31,7 @@ default: &DEFAULT
     joint_factorization: False
     fno_block_precision: 'full' #or 'half', 'mixed'
     stabilizer: None #or 'tanh'
-  
+
   data:
     batch_size: 4
     n_train: 10

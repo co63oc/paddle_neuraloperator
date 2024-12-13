@@ -1,6 +1,16 @@
 title = "neuralop"
 
 [tool.black]
-    line-length = 88  # Allow for 90-ish characters
-    target-versions = ["py36", "py38", "py310"]
+    line-length = 100
     include = ["neuralop/layers/*"]
+
+[tool.setuptools_scm]
+
+[tool.ruff]
+line-length = 100
+ignore = ["E501", "E741", "E731"]
+extend-exclude = [
+]
+
+[tool.isort]
+profile = "black"

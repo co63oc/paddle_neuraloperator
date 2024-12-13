@@ -1,5 +1,6 @@
-import paddle
 from typing import List
+
+import paddle
 
 
 class DictDataset(paddle.io.Dataset):
@@ -9,7 +10,11 @@ class DictDataset(paddle.io.Dataset):
 
     """
 
-    def __init__(self, data_list: List[dict], constant: dict=None):
+    def __init__(
+        self,
+        data_list: List[dict],
+        constant: dict = None,
+    ):
         """
 
         Parameters
@@ -20,13 +25,16 @@ class DictDataset(paddle.io.Dataset):
             if each data batch shares some constant valued key/val pairs,
             they can be stored in constant for simplicity
         """
+
         self.data_list = data_list
         self.constant = constant
 
     def __getitem__(self, index):
         return_dict = self.data_list[index]
+
         if self.constant is not None:
             return_dict.update(self.constant)
+
         return return_dict
 
     def __len__(self):

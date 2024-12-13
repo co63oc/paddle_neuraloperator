@@ -1,5 +1,5 @@
 # Adapted from https://stackoverflow.com/questions/59111396/loop-through-the-directories-to-get-the-image-files
-# Usage 
+# Usage
 # chmod 755 compress_images.bash
 # bash compress_images.sh ./_static/images
 

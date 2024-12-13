@@ -1,12 +1,18 @@
+from typing import List
+from typing import Optional  # noqa
+from typing import Union
+
 import paddle
-from typing import List, Optional, Union
+
+from ..utils import validate_scaling_factor
 from .channel_mlp import ChannelMLP
-from .fno_block import SubModule
 from .differential_conv import FiniteDifferenceConvolution
-from .normalization_layers import AdaIN, InstanceNorm
+from .fno_block import SubModule
+from .normalization_layers import AdaIN
+from .normalization_layers import InstanceNorm
 from .skip_connections import skip_connection
 from .spectral_convolution import SpectralConv
-from ..utils import validate_scaling_factor
+
 Number = Union[int, float]
 
 
@@ -15,10 +21,10 @@ class LocalFNOBlocks(paddle.nn.Layer):
     as described in "Fourier Neural Operator for Parametric
     Partial Differential Equations (Li et al., 2021).
 
-    The Fourier layers are placed in parallel with differential 
-    kernel layers from "Neural Operators with Localized Integral 
+    The Fourier layers are placed in parallel with differential
+    kernel layers from "Neural Operators with Localized Integral
     and Differential Kernels" (Liu-Schiaffini et al., 2024).
-    
+
     Parameters
         ----------
         in_channels : int
@@ -26,7 +32,7 @@ class LocalFNOBlocks(paddle.nn.Layer):
         out_channels : int
             output channels after Fourier layers
         n_modes : int, List[int]
-            number of modes to keep along each dimension 
+            number of modes to keep along each dimension
             in frequency space. Can either be specified as
             an int (for all dimensions) or an iterable with one
             number per dimension
@@ -44,7 +50,7 @@ class LocalFNOBlocks(paddle.nn.Layer):
             dropout parameter for self.mlp, by default 0
         channel_mlp_expansion : float, optional
             expansion parameter for self.mlp, by default 0.5
-        non_linearity : torch.nn.F module, optional
+        non_linearity : paddle.nn.F module, optional
             nonlinear activation function to use between layers, by default F.gelu
         stabilizer : Literal["tanh"], optional
             stabilizing module to use between certain layers, by default None
@@ -95,7 +101,7 @@ class LocalFNOBlocks(paddle.nn.Layer):
         conv_padding_mode : str in ['periodic', 'circular', 'replicate', 'reflect', 'zeros'], optional
             Padding mode for spatial convolution kernels.
         default_grid_res : int or None, optional
-            Proportional to default input shape of last spatial dimension. If 
+            Proportional to default input shape of last spatial dimension. If
             None, inferred from data. This is used for defining the appropriate
             scaling of the differential kernel.
         fin_diff_kernel_size : odd int, optional
@@ -104,31 +110,53 @@ class LocalFNOBlocks(paddle.nn.Layer):
             Whether to mix derivatives across channels
     """
 
-    def __init__(self, in_channels, out_channels, n_modes,
-        output_scaling_factor=None, n_layers=1, diff_layers=[True],
-        fin_diff_implementation='subtract_middle', conv_padding_mode=
-        'periodic', default_grid_res=None, fin_diff_kernel_size=3,
-        mix_derivatives=True, max_n_modes=None, fno_block_precision='full',
-        use_channel_mlp=False, channel_mlp_dropout=0, channel_mlp_expansion
-        =0.5, non_linearity=paddle.nn.functional.gelu, stabilizer=None,
-        norm=None, ada_in_features=None, preactivation=False, fno_skip=
-        'linear', channel_mlp_skip='soft-gating', separable=False,
-        factorization=None, rank=1.0, SpectralConv=SpectralConv,
-        joint_factorization=False, fixed_rank_modes=False, implementation=
-        'factorized', decomposition_kwargs=dict(), fft_norm='forward', **kwargs
-        ):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        n_modes,
+        output_scaling_factor=None,
+        n_layers=1,
+        diff_layers=[True],
+        fin_diff_implementation="subtract_middle",
+        # conv_padding_mode="periodic",  # paddle do not support default "periodic", so change to "zeros"
+        conv_padding_mode="zeros",
+        default_grid_res=None,
+        fin_diff_kernel_size=3,
+        mix_derivatives=True,
+        max_n_modes=None,
+        fno_block_precision="full",
+        use_channel_mlp=False,
+        channel_mlp_dropout=0,
+        channel_mlp_expansion=0.5,
+        non_linearity=paddle.nn.functional.gelu,
+        stabilizer=None,
+        norm=None,
+        ada_in_features=None,
+        preactivation=False,
+        fno_skip="linear",
+        channel_mlp_skip="soft-gating",
+        separable=False,
+        factorization=None,
+        rank=1.0,
+        SpectralConv=SpectralConv,
+        joint_factorization=False,
+        fixed_rank_modes=False,
+        implementation="factorized",
+        decomposition_kwargs=dict(),
+        fft_norm="forward",
+        **kwargs,
+    ):
         super().__init__()
         if isinstance(n_modes, int):
             n_modes = [n_modes]
         self._n_modes = n_modes
         if len(n_modes) > 3 and True in diff_layers:
-            NotImplementedError(
-                'Differential convs not implemented for dimensions higher than 3.'
-                )
+            NotImplementedError("Differential convs not implemented for dimensions higher than 3.")
         self.n_dim = len(n_modes)
-        self.output_scaling_factor: Union[None, List[List[float]]
-            ] = validate_scaling_factor(output_scaling_factor, self.n_dim,
-            n_layers)
+        self.output_scaling_factor: Union[None, List[List[float]]] = validate_scaling_factor(
+            output_scaling_factor, self.n_dim, n_layers
+        )
         self.max_n_modes = max_n_modes
         self.fno_block_precision = fno_block_precision
         self.in_channels = in_channels
@@ -157,24 +185,49 @@ class LocalFNOBlocks(paddle.nn.Layer):
         self.default_grid_res = default_grid_res
         self.fin_diff_kernel_size = fin_diff_kernel_size
         self.mix_derivatives = mix_derivatives
-        assert len(diff_layers
-            ) == n_layers, 'Length of diff_layers must be n_layers'
-        self.convs = SpectralConv(self.in_channels, self.out_channels, self
-            .n_modes, output_scaling_factor=output_scaling_factor,
-            max_n_modes=max_n_modes, rank=rank, fixed_rank_modes=
-            fixed_rank_modes, implementation=implementation, separable=
-            separable, factorization=factorization, decomposition_kwargs=
-            decomposition_kwargs, joint_factorization=joint_factorization,
-            n_layers=n_layers)
-        self.fno_skips = paddle.nn.LayerList(sublayers=[skip_connection(
-            self.in_channels, self.out_channels, skip_type=fno_skip, n_dim=
-            self.n_dim) for _ in range(n_layers)])
+        assert len(diff_layers) == n_layers, "Length of diff_layers must be n_layers"
+        self.convs = SpectralConv(
+            self.in_channels,
+            self.out_channels,
+            self.n_modes,
+            output_scaling_factor=output_scaling_factor,
+            max_n_modes=max_n_modes,
+            rank=rank,
+            fixed_rank_modes=fixed_rank_modes,
+            implementation=implementation,
+            separable=separable,
+            factorization=factorization,
+            decomposition_kwargs=decomposition_kwargs,
+            joint_factorization=joint_factorization,
+            n_layers=n_layers,
+        )
+        self.fno_skips = paddle.nn.LayerList(
+            sublayers=[
+                skip_connection(
+                    self.in_channels,
+                    self.out_channels,
+                    skip_type=fno_skip,
+                    n_dim=self.n_dim,
+                )
+                for _ in range(n_layers)
+            ]
+        )
         self.groups = 1 if mix_derivatives else in_channels
-        self.differential = paddle.nn.LayerList(sublayers=[
-            FiniteDifferenceConvolution(self.in_channels, self.out_channels,
-            self.n_dim, self.fin_diff_kernel_size, self.groups, self.
-            conv_padding_mode, fin_diff_implementation) for _ in range(sum(
-            self.diff_layers))])
+        self.differential = paddle.nn.LayerList(
+            sublayers=[
+                FiniteDifferenceConvolution(
+                    self.in_channels,
+                    self.out_channels,
+                    self.n_dim,
+                    self.fin_diff_kernel_size,
+                    self.groups,
+                    self.conv_padding_mode,
+                    fin_diff_implementation,
+                )
+                for _ in range(sum(self.diff_layers))
+            ]
+        )
+        # Helper for calling differential layers
         self.differential_idx_list = []
         j = 0
         for i in range(n_layers):
@@ -185,35 +238,62 @@ class LocalFNOBlocks(paddle.nn.Layer):
                 self.differential_idx_list.append(-1)
         assert max(self.differential_idx_list) == sum(self.diff_layers) - 1
         if use_channel_mlp:
-            self.mlp = paddle.nn.LayerList(sublayers=[ChannelMLP(
-                in_channels=self.out_channels, hidden_channels=round(self.
-                out_channels * channel_mlp_expansion), dropout=
-                channel_mlp_dropout, n_dim=self.n_dim) for _ in range(
-                n_layers)])
-            self.channel_mlp_skips = paddle.nn.LayerList(sublayers=[
-                skip_connection(self.in_channels, self.out_channels,
-                skip_type=channel_mlp_skip, n_dim=self.n_dim) for _ in
-                range(n_layers)])
+            self.mlp = paddle.nn.LayerList(
+                sublayers=[
+                    ChannelMLP(
+                        in_channels=self.out_channels,
+                        hidden_channels=round(self.out_channels * channel_mlp_expansion),
+                        dropout=channel_mlp_dropout,
+                        n_dim=self.n_dim,
+                    )
+                    for _ in range(n_layers)
+                ]
+            )
+            self.channel_mlp_skips = paddle.nn.LayerList(
+                sublayers=[
+                    skip_connection(
+                        self.in_channels,
+                        self.out_channels,
+                        skip_type=channel_mlp_skip,
+                        n_dim=self.n_dim,
+                    )
+                    for _ in range(n_layers)
+                ]
+            )
         else:
             self.mlp = None
+        # Each block will have 2 norms if we also use an MLP
         self.n_norms = 1 if self.mlp is None else 2
         if norm is None:
             self.norm = None
-        elif norm == 'instance_norm':
-            self.norm = paddle.nn.LayerList(sublayers=[InstanceNorm() for _ in
-                range(n_layers * self.n_norms)])
-        elif norm == 'group_norm':
-            self.norm = paddle.nn.LayerList(sublayers=[paddle.nn.GroupNorm(
-                num_groups=1, num_channels=self.out_channels) for _ in
-                range(n_layers * self.n_norms)])
-        elif norm == 'ada_in':
-            self.norm = paddle.nn.LayerList(sublayers=[AdaIN(
-                ada_in_features, out_channels) for _ in range(n_layers *
-                self.n_norms)])
+        elif norm == "instance_norm":
+            self.norm = paddle.nn.LayerList(
+                sublayers=[InstanceNorm() for _ in range(n_layers * self.n_norms)]
+            )
+        elif norm == "group_norm":
+            self.norm = paddle.nn.LayerList(
+                sublayers=[
+                    paddle.nn.GroupNorm(num_groups=1, num_channels=self.out_channels)
+                    for _ in range(n_layers * self.n_norms)
+                ]
+            )
+        # elif norm == 'layer_norm':
+        #     self.norm = nn.LayerList(
+        #         [
+        #             nn.LayerNorm(elementwise_affine=False)
+        #             for _ in range(n_layers*self.n_norms)
+        #         ]
+        #     )
+        elif norm == "ada_in":
+            self.norm = paddle.nn.LayerList(
+                sublayers=[
+                    AdaIN(ada_in_features, out_channels) for _ in range(n_layers * self.n_norms)
+                ]
+            )
         else:
             raise ValueError(
-                f'Got norm={norm} but expected None or one of [instance_norm, group_norm, ada_in]'
-                )
+                f"Got norm={norm} but expected None or one of [instance_norm, group_norm, ada_in]"
+            )
 
     def set_ada_in_embeddings(self, *embeddings):
         """Sets the embeddings of each Ada-IN norm layers
@@ -241,22 +321,19 @@ class LocalFNOBlocks(paddle.nn.Layer):
 
     def forward_with_postactivation(self, x, index=0, output_shape=None):
         x_skip_fno = self.fno_skips[index](x)
-        x_skip_fno = self.convs[index].transform(x_skip_fno, output_shape=
-            output_shape)
+        x_skip_fno = self.convs[index].transform(x_skip_fno, output_shape=output_shape)
         if self.mlp is not None:
             x_skip_mlp = self.channel_mlp_skips[index](x)
-            x_skip_mlp = self.convs[index].transform(x_skip_mlp,
-                output_shape=output_shape)
-        if self.stabilizer == 'tanh':
+            x_skip_mlp = self.convs[index].transform(x_skip_mlp, output_shape=output_shape)
+        if self.stabilizer == "tanh":
             x = paddle.nn.functional.tanh(x=x)
         x_fno = self.convs(x, index, output_shape=output_shape)
         if self.differential_idx_list[index] != -1:
-            grid_width_scaling_factor = 1 / (tuple(x.shape)[-1] / self.
-                default_grid_res)
-            x_differential = self.differential[self.differential_idx_list[
-                index]](x, grid_width_scaling_factor)
-            x_differential = self.convs[index].transform(x_differential,
-                output_shape=output_shape)
+            grid_width_scaling_factor = 1 / (tuple(x.shape)[-1] / self.default_grid_res)
+            x_differential = self.differential[self.differential_idx_list[index]](
+                x, grid_width_scaling_factor
+            )
+            x_differential = self.convs[index].transform(x_differential, output_shape=output_shape)
         else:
             x_differential = 0
         x_fno_diff = x_fno + x_differential
@@ -271,27 +348,32 @@ class LocalFNOBlocks(paddle.nn.Layer):
                 x = self.norm[self.n_norms * index + 1](x)
             if index < self.n_layers - 1:
                 x = self.non_linearity(x)
+
         return x
 
     def forward_with_preactivation(self, x, index=0, output_shape=None):
+        # Apply non-linear activation (and norm)
+        # before this block's convolution/forward pass:
         x = self.non_linearity(x)
+
         if self.norm is not None:
             x = self.norm[self.n_norms * index](x)
+
         if self.differential_idx_list[index] != -1:
-            grid_width_scaling_factor = 1 / (tuple(x.shape)[-1] / self.
-                default_grid_res)
-            x_differential = self.differential[self.differential_idx_list[
-                index]](x, grid_width_scaling_factor)
+            grid_width_scaling_factor = 1 / (tuple(x.shape)[-1] / self.default_grid_res)
+            x_differential = self.differential[self.differential_idx_list[index]](
+                x, grid_width_scaling_factor
+            )
         else:
             x_differential = 0
         x_skip_fno = self.fno_skips[index](x)
-        x_skip_fno_diff = self.convs[index].transform(x_skip_fno +
-            x_differential, output_shape=output_shape)
+        x_skip_fno_diff = self.convs[index].transform(
+            x_skip_fno + x_differential, output_shape=output_shape
+        )
         if self.mlp is not None:
             x_skip_mlp = self.channel_mlp_skips[index](x)
-            x_skip_mlp = self.convs[index].transform(x_skip_mlp,
-                output_shape=output_shape)
-        if self.stabilizer == 'tanh':
+            x_skip_mlp = self.convs[index].transform(x_skip_mlp, output_shape=output_shape)
+        if self.stabilizer == "tanh":
             x = paddle.nn.functional.tanh(x=x)
         x_fno = self.convs(x, index, output_shape=output_shape)
         x = x_fno + x_skip_fno_diff
@@ -318,8 +400,7 @@ class LocalFNOBlocks(paddle.nn.Layer):
         The parametrization of an FNOBlock layer is shared with the main one.
         """
         if self.n_layers == 1:
-            raise ValueError(
-                'A single layer is parametrized, directly use the main class.')
+            raise ValueError("A single layer is parametrized, directly use the main class.")
         return SubModule(self, indices)
 
     def __getitem__(self, indices):

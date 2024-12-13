@@ -1,4 +1,5 @@
 import paddle
+
 from .data_losses import central_diff_2d
 
 
@@ -7,8 +8,13 @@ class BurgersEqnLoss(object):
     Computes loss for Burgers' equation.
     """
 
-    def __init__(self, visc=0.01, method='fdm', loss=paddle.nn.functional.
-        mse_loss, domain_length=1.0):
+    def __init__(
+        self,
+        visc=0.01,
+        method="fdm",
+        loss=paddle.nn.functional.mse_loss,
+        domain_length=1.0,
+    ):
         super().__init__()
         self.visc = visc
         self.method = method
@@ -18,21 +24,32 @@ class BurgersEqnLoss(object):
             self.domain_length = [self.domain_length] * 2
 
     def fdm(self, u):
+        # remove extra channel dimensions
         u = u.squeeze(axis=1)
+
+        # shapes
         _, nt, nx = tuple(u.shape)
+
+        # we assume that the input is given on a regular grid
         dt = self.domain_length[0] / (nt - 1)
         dx = self.domain_length[1] / nx
-        dudt, dudx = central_diff_2d(u, [dt, dx], fix_x_bnd=True, fix_y_bnd
-            =True)
-        dudxx = (paddle.roll(x=u, shifts=-1, axis=-1) - 2 * u + paddle.roll
-            (x=u, shifts=1, axis=-1)) / dx ** 2
-        dudxx[..., 0] = (u[..., 2] - 2 * u[..., 1] + u[..., 0]) / dx ** 2
-        dudxx[..., -1] = (u[..., -1] - 2 * u[..., -2] + u[..., -3]) / dx ** 2
+
+        # du/dt and du/dx
+        dudt, dudx = central_diff_2d(u, [dt, dx], fix_x_bnd=True, fix_y_bnd=True)
+        # d^2u/dxx
+        dudxx = (
+            paddle.roll(x=u, shifts=-1, axis=-1) - 2 * u + paddle.roll(x=u, shifts=1, axis=-1)
+        ) / dx**2
+        # fix boundary
+        dudxx[..., 0] = (u[..., 2] - 2 * u[..., 1] + u[..., 0]) / dx**2
+        dudxx[..., -1] = (u[..., -1] - 2 * u[..., -2] + u[..., -3]) / dx**2
+        # right hand side
         right_hand_side = -dudx * u + self.visc * dudxx
+        # compute the loss of the left and right hand sides of Burgers' equation
         return self.loss(dudt, right_hand_side)
 
     def __call__(self, y_pred, **kwargs):
-        if self.method == 'fdm':
+        if self.method == "fdm":
             return self.fdm(u=y_pred)
         raise NotImplementedError()
 

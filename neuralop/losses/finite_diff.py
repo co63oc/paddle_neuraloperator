@@ -1,22 +1,25 @@
 import paddle
+
 """
 finite_diff.py implements utilities for computing derivatives via finite-difference method
 """
 
-
+# Set fix{x,y,z}_bnd if function is non-periodic in {x,y,z} direction
+# x: (*, s)
+# y: (*, s)
 def central_diff_1d(x, h, fix_x_bnd=False):
     """central_diff_1d computes the first spatial derivative
-    of x using central finite-difference 
+    of x using central finite-difference
 
     Parameters
     ----------
-    x : torch.Tensor
+    x : paddle.Tensor
         input data on a regular 1d grid, such that
         x[i] = f(x_i)
     h : float
         discretization size of input x
     fix_x_bnd : bool, optional
-        whether to average boundary and second-outermost 
+        whether to average boundary and second-outermost
         derivative values, by default False
 
     Returns
@@ -24,22 +27,23 @@ def central_diff_1d(x, h, fix_x_bnd=False):
     dx
         output tensor of df(x)/dx at each point
     """
-    dx = (paddle.roll(x=x, shifts=-1, axis=-1) - paddle.roll(x=x, shifts=1,
-        axis=-1)) / (2.0 * h)
+    dx = (paddle.roll(x=x, shifts=-1, axis=-1) - paddle.roll(x=x, shifts=1, axis=-1)) / (2.0 * h)
     if fix_x_bnd:
         dx[..., 0] = (x[..., 1] - x[..., 0]) / h
         dx[..., -1] = (x[..., -1] - x[..., -2]) / h
     return dx
 
 
+# x: (*, s1, s2)
+# y: (*, s1, s2)
 def central_diff_2d(x, h, fix_x_bnd=False, fix_y_bnd=False):
-    """central_diff_2d computes derivatives 
-    df(x,y)/dx and df(x,y)/dy for f(x,y) defined 
+    """central_diff_2d computes derivatives
+    df(x,y)/dx and df(x,y)/dy for f(x,y) defined
     on a regular 2d grid using finite-difference
 
     Parameters
     ----------
-    x : torch.Tensor
+    x : paddle.Tensor
         input function defined x[:,i,j] = f(x_i, y_j)
     h : float or list
         discretization size of grid for each dimension
@@ -56,10 +60,8 @@ def central_diff_2d(x, h, fix_x_bnd=False, fix_y_bnd=False):
     """
     if isinstance(h, float):
         h = [h, h]
-    dx = (paddle.roll(x=x, shifts=-1, axis=-2) - paddle.roll(x=x, shifts=1,
-        axis=-2)) / (2.0 * h[0])
-    dy = (paddle.roll(x=x, shifts=-1, axis=-1) - paddle.roll(x=x, shifts=1,
-        axis=-1)) / (2.0 * h[1])
+    dx = (paddle.roll(x=x, shifts=-1, axis=-2) - paddle.roll(x=x, shifts=1, axis=-2)) / (2.0 * h[0])
+    dy = (paddle.roll(x=x, shifts=-1, axis=-1) - paddle.roll(x=x, shifts=1, axis=-1)) / (2.0 * h[1])
     if fix_x_bnd:
         dx[..., 0, :] = (x[..., 1, :] - x[..., 0, :]) / h[0]
         dx[..., -1, :] = (x[..., -1, :] - x[..., -2, :]) / h[0]
@@ -69,14 +71,16 @@ def central_diff_2d(x, h, fix_x_bnd=False, fix_y_bnd=False):
     return dx, dy
 
 
+# x: (*, s1, s2, s3)
+# y: (*, s1, s2, s3)
 def central_diff_3d(x, h, fix_x_bnd=False, fix_y_bnd=False, fix_z_bnd=False):
-    """central_diff_3d computes derivatives 
-    df(x,y,z)/dx and df(x,y,z)/dy for f(x,y,z) defined 
+    """central_diff_3d computes derivatives
+    df(x,y,z)/dx and df(x,y,z)/dy for f(x,y,z) defined
     on a regular 2d grid using finite-difference
 
     Parameters
     ----------
-    x : torch.Tensor
+    x : paddle.Tensor
         input function defined x[:,i,j,k] = f(x_i, y_j,z_k)
     h : float or list
         discretization size of grid for each dimension
@@ -96,12 +100,9 @@ def central_diff_3d(x, h, fix_x_bnd=False, fix_y_bnd=False, fix_z_bnd=False):
     """
     if isinstance(h, float):
         h = [h, h, h]
-    dx = (paddle.roll(x=x, shifts=-1, axis=-3) - paddle.roll(x=x, shifts=1,
-        axis=-3)) / (2.0 * h[0])
-    dy = (paddle.roll(x=x, shifts=-1, axis=-2) - paddle.roll(x=x, shifts=1,
-        axis=-2)) / (2.0 * h[1])
-    dz = (paddle.roll(x=x, shifts=-1, axis=-1) - paddle.roll(x=x, shifts=1,
-        axis=-1)) / (2.0 * h[2])
+    dx = (paddle.roll(x=x, shifts=-1, axis=-3) - paddle.roll(x=x, shifts=1, axis=-3)) / (2.0 * h[0])
+    dy = (paddle.roll(x=x, shifts=-1, axis=-2) - paddle.roll(x=x, shifts=1, axis=-2)) / (2.0 * h[1])
+    dz = (paddle.roll(x=x, shifts=-1, axis=-1) - paddle.roll(x=x, shifts=1, axis=-1)) / (2.0 * h[2])
     if fix_x_bnd:
         dx[..., 0, :, :] = (x[..., 1, :, :] - x[..., 0, :, :]) / h[0]
         dx[..., -1, :, :] = (x[..., -1, :, :] - x[..., -2, :, :]) / h[0]

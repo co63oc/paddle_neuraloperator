@@ -28,7 +28,7 @@ default: &DEFAULT
     norm: None
     skip: 'linear'
     implementation: 'reconstructed'
-    
+
     use_channel_mlp: 1
     channel_mlp_expansion: 0.5
     channel_mlp_dropout: 0
@@ -64,7 +64,7 @@ default: &DEFAULT
     n_train: 8000
     train_resolution: 128
     n_tests: [2000] #, 1000] #, 1000]
-    test_resolutions: [128] #, 1024] #, 1024] 
+    test_resolutions: [128] #, 1024] #, 1024]
     test_batch_sizes: [16] #, 4] #, 1]
     encode_input: True
     encode_output: True
@@ -79,7 +79,7 @@ default: &DEFAULT
   wandb:
     log: False
     name: None # If None, config will be used but you can override it here
-    group: '' 
+    group: ''
     project: "train_ns"
     entity: "dhpitt" # put your username here
     sweep: False

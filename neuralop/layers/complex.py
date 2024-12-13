@@ -1,8 +1,9 @@
-import paddle
 """
 Functionality for handling complex-valued spatial data
 """
 from copy import deepcopy
+
+import paddle
 
 
 def CGELU(x: paddle.Tensor):
@@ -12,8 +13,9 @@ def CGELU(x: paddle.Tensor):
     Args:
         x: complex tensor
     """
-    return paddle.nn.functional.gelu(x=x.real()).astype('complex64'
-        ) + 1.0j * paddle.nn.functional.gelu(x=x.imag()).astype('complex64')
+    return paddle.nn.functional.gelu(x=x.real()).astype(
+        "complex64"
+    ) + 1.0j * paddle.nn.functional.gelu(x=x.imag()).astype("complex64")
 
 
 def ctanh(x: paddle.Tensor):
@@ -22,23 +24,25 @@ def ctanh(x: paddle.Tensor):
     Args:
         x: complex tensor
     """
-    return paddle.nn.functional.tanh(x=x.real()).astype('complex64'
-        ) + 1.0j * paddle.nn.functional.tanh(x=x.imag()).astype('complex64')
+    return paddle.nn.functional.tanh(x=x.real()).astype(
+        "complex64"
+    ) + 1.0j * paddle.nn.functional.tanh(x=x.imag()).astype("complex64")
 
 
-def apply_complex(real_func, imag_func, x, dtype='complex64'):
+def apply_complex(real_func, imag_func, x, dtype="complex64"):
     """
     fr: a function (e.g., conv) to be applied on real part of x
     fi: a function (e.g., conv) to be applied on imag part of x
     x: complex input.
     """
     return (real_func(x.real()) - imag_func(x.imag())).astype(dtype) + 1.0j * (
-        real_func(x.imag()) + imag_func(x.real())).astype(dtype)
+        real_func(x.imag()) + imag_func(x.real())
+    ).astype(dtype)
 
 
 class ComplexValued(paddle.nn.Layer):
     """
-    Wrapper class that converts a standard nn.Module that operates on real data
+    Wrapper class that converts a standard nn.Layer that operates on real data
     into a module that operates on complex-valued spatial data.
     """
 

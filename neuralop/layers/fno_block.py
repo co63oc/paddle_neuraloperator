@@ -1,11 +1,20 @@
+from typing import List
+from typing import Optional  # noqa
+from typing import Union
+
 import paddle
-from typing import List, Optional, Union
+
+from ..utils import validate_scaling_factor
 from .channel_mlp import ChannelMLP
-from .complex import CGELU, apply_complex, ctanh, ComplexValued
-from .normalization_layers import AdaIN, InstanceNorm
+from .complex import CGELU
+from .complex import ComplexValued
+from .complex import apply_complex  # noqa
+from .complex import ctanh
+from .normalization_layers import AdaIN
+from .normalization_layers import InstanceNorm
 from .skip_connections import skip_connection
 from .spectral_convolution import SpectralConv
-from ..utils import validate_scaling_factor
+
 Number = Union[int, float]
 
 
@@ -21,7 +30,7 @@ class FNOBlocks(paddle.nn.Layer):
     out_channels : int
         output channels after Fourier layers
     n_modes : int, List[int]
-        number of modes to keep along each dimension 
+        number of modes to keep along each dimension
         in frequency space. Can either be specified as
         an int (for all dimensions) or an iterable with one
         number per dimension
@@ -39,7 +48,7 @@ class FNOBlocks(paddle.nn.Layer):
         dropout parameter for self.channel_mlp, by default 0
     channel_mlp_expansion : float, optional
         expansion parameter for self.channel_mlp, by default 0.5
-    non_linearity : torch.nn.F module, optional
+    non_linearity : paddle.nn.F module, optional
         nonlinear activation function to use between layers, by default F.gelu
     stabilizer : Literal["tanh"], optional
         stabilizing module to use between certain layers, by default None
@@ -78,24 +87,44 @@ class FNOBlocks(paddle.nn.Layer):
         kwargs for tensor decomposition in SpectralConv, by default dict()
     """
 
-    def __init__(self, in_channels, out_channels, n_modes,
-        output_scaling_factor=None, n_layers=1, max_n_modes=None,
-        fno_block_precision='full', use_channel_mlp=False,
-        channel_mlp_dropout=0, channel_mlp_expansion=0.5, non_linearity=
-        paddle.nn.functional.gelu, stabilizer=None, norm=None,
-        ada_in_features=None, preactivation=False, fno_skip='linear',
-        channel_mlp_skip='soft-gating', complex_data=False, separable=False,
-        factorization=None, rank=1.0, conv_module=SpectralConv,
-        joint_factorization=False, fixed_rank_modes=False, implementation=
-        'factorized', decomposition_kwargs=dict(), **kwargs):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        n_modes,
+        output_scaling_factor=None,
+        n_layers=1,
+        max_n_modes=None,
+        fno_block_precision="full",
+        use_channel_mlp=False,
+        channel_mlp_dropout=0,
+        channel_mlp_expansion=0.5,
+        non_linearity=paddle.nn.functional.gelu,
+        stabilizer=None,
+        norm=None,
+        ada_in_features=None,
+        preactivation=False,
+        fno_skip="linear",
+        channel_mlp_skip="soft-gating",
+        complex_data=False,
+        separable=False,
+        factorization=None,
+        rank=1.0,
+        conv_module=SpectralConv,
+        joint_factorization=False,
+        fixed_rank_modes=False,
+        implementation="factorized",
+        decomposition_kwargs=dict(),
+        **kwargs,
+    ):
         super().__init__()
         if isinstance(n_modes, int):
             n_modes = [n_modes]
         self._n_modes = n_modes
         self.n_dim = len(n_modes)
-        self.output_scaling_factor: Union[None, List[List[float]]
-            ] = validate_scaling_factor(output_scaling_factor, self.n_dim,
-            n_layers)
+        self.output_scaling_factor: Union[None, List[List[float]]] = validate_scaling_factor(
+            output_scaling_factor, self.n_dim, n_layers
+        )
         self.max_n_modes = max_n_modes
         self.fno_block_precision = fno_block_precision
         self.in_channels = in_channels
@@ -117,63 +146,116 @@ class FNOBlocks(paddle.nn.Layer):
         self.separable = separable
         self.preactivation = preactivation
         self.ada_in_features = ada_in_features
+
+        # apply real nonlin if data is real, otherwise CGELU
         if complex_data:
             self.non_linearity = CGELU
         else:
             self.non_linearity = non_linearity
+
+        # TODO: eventually support complex data in SphericalConv and SFNO
+        # remove these lines once support is added
         if conv_module == SpectralConv:
-            complex_kwarg = {'complex_data': complex_data}
+            complex_kwarg = {"complex_data": complex_data}
         else:
             complex_kwarg = dict()
-        self.convs = conv_module(self.in_channels, self.out_channels, self.
-            n_modes, output_scaling_factor=output_scaling_factor,
-            max_n_modes=max_n_modes, rank=rank, fixed_rank_modes=
-            fixed_rank_modes, implementation=implementation, separable=
-            separable, factorization=factorization, decomposition_kwargs=
-            decomposition_kwargs, joint_factorization=joint_factorization,
-            n_layers=n_layers, **complex_kwarg)
-        self.fno_skips = paddle.nn.LayerList(sublayers=[skip_connection(
-            self.in_channels, self.out_channels, skip_type=fno_skip, n_dim=
-            self.n_dim) for _ in range(n_layers)])
+        self.convs = conv_module(
+            self.in_channels,
+            self.out_channels,
+            self.n_modes,
+            output_scaling_factor=output_scaling_factor,
+            max_n_modes=max_n_modes,
+            rank=rank,
+            fixed_rank_modes=fixed_rank_modes,
+            implementation=implementation,
+            separable=separable,
+            factorization=factorization,
+            decomposition_kwargs=decomposition_kwargs,
+            joint_factorization=joint_factorization,
+            n_layers=n_layers,
+            **complex_kwarg,
+        )
+        self.fno_skips = paddle.nn.LayerList(
+            sublayers=[
+                skip_connection(
+                    self.in_channels,
+                    self.out_channels,
+                    skip_type=fno_skip,
+                    n_dim=self.n_dim,
+                )
+                for _ in range(n_layers)
+            ]
+        )
         if self.complex_data:
-            self.fno_skips = paddle.nn.LayerList(sublayers=[ComplexValued(x
-                ) for x in self.fno_skips])
+            self.fno_skips = paddle.nn.LayerList(
+                sublayers=[ComplexValued(x) for x in self.fno_skips]
+            )
         if use_channel_mlp:
-            self.channel_mlp = paddle.nn.LayerList(sublayers=[ChannelMLP(
-                in_channels=self.out_channels, hidden_channels=round(self.
-                out_channels * channel_mlp_expansion), dropout=
-                channel_mlp_dropout, n_dim=self.n_dim) for _ in range(
-                n_layers)])
+            self.channel_mlp = paddle.nn.LayerList(
+                sublayers=[
+                    ChannelMLP(
+                        in_channels=self.out_channels,
+                        hidden_channels=round(self.out_channels * channel_mlp_expansion),
+                        dropout=channel_mlp_dropout,
+                        n_dim=self.n_dim,
+                    )
+                    for _ in range(n_layers)
+                ]
+            )
             if self.complex_data:
-                self.channel_mlp = paddle.nn.LayerList(sublayers=[
-                    ComplexValued(x) for x in self.channel_mlp])
-            self.channel_mlp_skips = paddle.nn.LayerList(sublayers=[
-                skip_connection(self.in_channels, self.out_channels,
-                skip_type=channel_mlp_skip, n_dim=self.n_dim) for _ in
-                range(n_layers)])
+                self.channel_mlp = paddle.nn.LayerList(
+                    sublayers=[ComplexValued(x) for x in self.channel_mlp]
+                )
+            self.channel_mlp_skips = paddle.nn.LayerList(
+                sublayers=[
+                    skip_connection(
+                        self.in_channels,
+                        self.out_channels,
+                        skip_type=channel_mlp_skip,
+                        n_dim=self.n_dim,
+                    )
+                    for _ in range(n_layers)
+                ]
+            )
             if self.complex_data:
-                self.channel_mlp_skips = paddle.nn.LayerList(sublayers=[
-                    ComplexValued(x) for x in self.channel_mlp_skips])
+                self.channel_mlp_skips = paddle.nn.LayerList(
+                    sublayers=[ComplexValued(x) for x in self.channel_mlp_skips]
+                )
         else:
             self.channel_mlp = None
+
+        # Each block will have 2 norms if we also use a ChannelMLP
         self.n_norms = 1 if self.channel_mlp is None else 2
         if norm is None:
             self.norm = None
-        elif norm == 'instance_norm':
-            self.norm = paddle.nn.LayerList(sublayers=[InstanceNorm() for _ in
-                range(n_layers * self.n_norms)])
-        elif norm == 'group_norm':
-            self.norm = paddle.nn.LayerList(sublayers=[paddle.nn.GroupNorm(
-                num_groups=1, num_channels=self.out_channels) for _ in
-                range(n_layers * self.n_norms)])
-        elif norm == 'ada_in':
-            self.norm = paddle.nn.LayerList(sublayers=[AdaIN(
-                ada_in_features, out_channels) for _ in range(n_layers *
-                self.n_norms)])
+        elif norm == "instance_norm":
+            self.norm = paddle.nn.LayerList(
+                sublayers=[InstanceNorm() for _ in range(n_layers * self.n_norms)]
+            )
+        elif norm == "group_norm":
+            self.norm = paddle.nn.LayerList(
+                sublayers=[
+                    paddle.nn.GroupNorm(num_groups=1, num_channels=self.out_channels)
+                    for _ in range(n_layers * self.n_norms)
+                ]
+            )
+        # elif norm == 'layer_norm':
+        #     self.norm = nn.LayerList(
+        #         [
+        #             nn.LayerNorm(elementwise_affine=False)
+        #             for _ in range(n_layers*self.n_norms)
+        #         ]
+        #     )
+        elif norm == "ada_in":
+            self.norm = paddle.nn.LayerList(
+                sublayers=[
+                    AdaIN(ada_in_features, out_channels) for _ in range(n_layers * self.n_norms)
+                ]
+            )
         else:
             raise ValueError(
-                f'Got norm={norm} but expected None or one of [instance_norm, group_norm, ada_in]'
-                )
+                f"Got norm={norm} but expected None or one of [instance_norm, group_norm, ada_in]"
+            )
 
     def set_ada_in_embeddings(self, *embeddings):
         """Sets the embeddings of each Ada-IN norm layers
@@ -199,13 +281,13 @@ class FNOBlocks(paddle.nn.Layer):
 
     def forward_with_postactivation(self, x, index=0, output_shape=None):
         x_skip_fno = self.fno_skips[index](x)
-        x_skip_fno = self.convs[index].transform(x_skip_fno, output_shape=
-            output_shape)
+        x_skip_fno = self.convs[index].transform(x_skip_fno, output_shape=output_shape)
         if self.channel_mlp is not None:
             x_skip_channel_mlp = self.channel_mlp_skips[index](x)
-            x_skip_channel_mlp = self.convs[index].transform(x_skip_channel_mlp
-                , output_shape=output_shape)
-        if self.stabilizer == 'tanh':
+            x_skip_channel_mlp = self.convs[index].transform(
+                x_skip_channel_mlp, output_shape=output_shape
+            )
+        if self.stabilizer == "tanh":
             if self.complex_data:
                 x = ctanh(x)
             else:
@@ -225,29 +307,35 @@ class FNOBlocks(paddle.nn.Layer):
         return x
 
     def forward_with_preactivation(self, x, index=0, output_shape=None):
+        # Apply non-linear activation (and norm)
+        # before this block's convolution/forward pass:
         x = self.non_linearity(x)
         if self.norm is not None:
             x = self.norm[self.n_norms * index](x)
         x_skip_fno = self.fno_skips[index](x)
-        x_skip_fno = self.convs[index].transform(x_skip_fno, output_shape=
-            output_shape)
+        x_skip_fno = self.convs[index].transform(x_skip_fno, output_shape=output_shape)
         if self.channel_mlp is not None:
             x_skip_channel_mlp = self.channel_mlp_skips[index](x)
-            x_skip_channel_mlp = self.convs[index].transform(x_skip_channel_mlp
-                , output_shape=output_shape)
-        if self.stabilizer == 'tanh':
+            x_skip_channel_mlp = self.convs[index].transform(
+                x_skip_channel_mlp, output_shape=output_shape
+            )
+        if self.stabilizer == "tanh":
             if self.complex_data:
                 x = ctanh(x)
             else:
                 x = paddle.nn.functional.tanh(x=x)
         x_fno = self.convs(x, index, output_shape=output_shape)
         x = x_fno + x_skip_fno
+
         if self.channel_mlp is not None:
             if index < self.n_layers - 1:
                 x = self.non_linearity(x)
+
             if self.norm is not None:
                 x = self.norm[self.n_norms * index + 1](x)
+
             x = self.channel_mlp[index](x) + x_skip_channel_mlp
+
         return x
 
     @property
@@ -265,8 +353,7 @@ class FNOBlocks(paddle.nn.Layer):
         The parametrization of an FNOBlock layer is shared with the main one.
         """
         if self.n_layers == 1:
-            raise ValueError(
-                'A single layer is parametrized, directly use the main class.')
+            raise ValueError("A single layer is parametrized, directly use the main class.")
         return SubModule(self, indices)
 
     def __getitem__(self, indices):

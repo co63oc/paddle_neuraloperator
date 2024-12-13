@@ -47,8 +47,8 @@ cfd: &CFD
   opt:
     n_epochs: 301
     learning_rate: 1e-3
-    training_loss: 'l2' 
-    testing_loss: 'l2' 
+    training_loss: 'l2'
+    testing_loss: 'l2'
     weight_decay: 1e-4
     amp_autocast: False
 
@@ -62,7 +62,7 @@ cfd: &CFD
   wandb:
     log: False #True
     name: None # If None, config will be used but you can override it here
-    group: 'drag' 
+    group: 'drag'
     project: ""
     entity: ""
     sweep: False

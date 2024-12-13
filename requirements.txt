@@ -1,8 +1,9 @@
-wandb
-ruamel.yaml
 configmypy
-tensorly
+h5py
 matplotlib
 opt-einsum
-h5py
+paddle_harmonics
+ruamel.yaml
+tensorly
+wandb
 zarr

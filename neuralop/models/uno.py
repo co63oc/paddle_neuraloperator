@@ -1,11 +1,13 @@
 import paddle
+
 from ..layers.channel_mlp import ChannelMLP
-from ..layers.spectral_convolution import SpectralConv
-from ..layers.skip_connections import skip_connection
-from ..layers.padding import DomainPadding
+from ..layers.embeddings import GridEmbedding2D
+from ..layers.embeddings import GridEmbeddingND
 from ..layers.fno_block import FNOBlocks
+from ..layers.padding import DomainPadding
 from ..layers.resample import resample
-from ..layers.embeddings import GridEmbedding2D, GridEmbeddingND
+from ..layers.skip_connections import skip_connection
+from ..layers.spectral_convolution import SpectralConv
 
 
 class UNO(paddle.nn.Layer):
@@ -24,7 +26,7 @@ class UNO(paddle.nn.Layer):
     projection_channels : int, optional
         number of hidden channels of the projection block of the FNO, by default 256
     positional_embedding : str literal | GridEmbedding2D | GridEmbeddingND | None
-        if "grid", appends a grid positional embedding with default settings to 
+        if "grid", appends a grid positional embedding with default settings to
         the last channels of raw input. Assumes the inputs are discretized
         over a grid with entry [0,0,...] at the origin and side lengths of 1.
         If an initialized GridEmbedding, uses this module directly
@@ -59,7 +61,7 @@ class UNO(paddle.nn.Layer):
     ChannelMLP : dict, optional
         Parameters of the ChannelMLP, by default None
         {'expansion': float, 'dropout': float}
-    non_linearity : nn.Module, optional
+    non_linearity : nn.Layer, optional
         Non-Linearity module to use, by default F.gelu
     norm : F.module, optional
         Normalization layer to use, by default None
@@ -95,31 +97,53 @@ class UNO(paddle.nn.Layer):
     [1] : U-NO: U-shaped Neural Operators, Md Ashiqur Rahman, Zachary E Ross, Kamyar Azizzadenesheli, TMLR 2022
     """
 
-    def __init__(self, in_channels, out_channels, hidden_channels,
-        lifting_channels=256, projection_channels=256, positional_embedding
-        ='grid', n_layers=4, uno_out_channels=None, uno_n_modes=None,
-        uno_scalings=None, horizontal_skips_map=None, incremental_n_modes=
-        None, use_channel_mlp=False, channel_mlpdropout=0,
-        channel_mlpexpansion=0.5, non_linearity=paddle.nn.functional.gelu,
-        norm=None, preactivation=False, fno_skip='linear', horizontal_skip=
-        'linear', channel_mlpskip='soft-gating', separable=False,
-        factorization=None, rank=1.0, joint_factorization=False,
-        fixed_rank_modes=False, integral_operator=SpectralConv,
-        operator_block=FNOBlocks, implementation='factorized',
-        decomposition_kwargs=dict(), domain_padding=None,
-        domain_padding_mode='one-sided', fft_norm='forward', normalizer=
-        None, verbose=False, **kwargs):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        hidden_channels,
+        lifting_channels=256,
+        projection_channels=256,
+        positional_embedding="grid",
+        n_layers=4,
+        uno_out_channels=None,
+        uno_n_modes=None,
+        uno_scalings=None,
+        horizontal_skips_map=None,
+        incremental_n_modes=None,
+        use_channel_mlp=False,
+        channel_mlpdropout=0,
+        channel_mlpexpansion=0.5,
+        non_linearity=paddle.nn.functional.gelu,
+        norm=None,
+        preactivation=False,
+        fno_skip="linear",
+        horizontal_skip="linear",
+        channel_mlpskip="soft-gating",
+        separable=False,
+        factorization=None,
+        rank=1.0,
+        joint_factorization=False,
+        fixed_rank_modes=False,
+        integral_operator=SpectralConv,
+        operator_block=FNOBlocks,
+        implementation="factorized",
+        decomposition_kwargs=dict(),
+        domain_padding=None,
+        domain_padding_mode="one-sided",
+        fft_norm="forward",
+        normalizer=None,
+        verbose=False,
+        **kwargs,
+    ):
         super().__init__()
         self.n_layers = n_layers
-        assert uno_out_channels is not None, 'uno_out_channels can not be None'
-        assert uno_n_modes is not None, 'uno_n_modes can not be None'
-        assert uno_scalings is not None, 'uno_scalings can not be None'
-        assert len(uno_out_channels
-            ) == n_layers, 'Output channels for all layers are not given'
-        assert len(uno_n_modes
-            ) == n_layers, 'number of modes for all layers are not given'
-        assert len(uno_scalings
-            ) == n_layers, 'Scaling factor for all layers are not given'
+        assert uno_out_channels is not None, "uno_out_channels can not be None"
+        assert uno_n_modes is not None, "uno_n_modes can not be None"
+        assert uno_scalings is not None, "uno_scalings can not be None"
+        assert len(uno_out_channels) == n_layers, "Output channels for all layers are not given"
+        assert len(uno_n_modes) == n_layers, "number of modes for all layers are not given"
+        assert len(uno_scalings) == n_layers, "Scaling factor for all layers are not given"
         self.n_dim = len(uno_n_modes[0])
         self.uno_out_channels = uno_out_channels
         self.uno_n_modes = uno_n_modes
@@ -136,8 +160,8 @@ class UNO(paddle.nn.Layer):
         self.factorization = factorization
         self.fixed_rank_modes = fixed_rank_modes
         self.decomposition_kwargs = decomposition_kwargs
-        self.fno_skip = fno_skip,
-        self.channel_mlpskip = channel_mlpskip,
+        self.fno_skip = (fno_skip,)
+        self.channel_mlpskip = (channel_mlpskip,)
         self.fft_norm = fft_norm
         self.implementation = implementation
         self.separable = separable
@@ -145,85 +169,127 @@ class UNO(paddle.nn.Layer):
         self._incremental_n_modes = incremental_n_modes
         self.operator_block = operator_block
         self.integral_operator = integral_operator
-        if positional_embedding == 'grid':
+
+        # create positional embedding at the beginning of the model
+        if positional_embedding == "grid":
             spatial_grid_boundaries = [[0.0, 1.0]] * self.n_dim
-            self.positional_embedding = GridEmbeddingND(in_channels=self.
-                in_channels, dim=self.n_dim, grid_boundaries=
-                spatial_grid_boundaries)
+            self.positional_embedding = GridEmbeddingND(
+                in_channels=self.in_channels,
+                dim=self.n_dim,
+                grid_boundaries=spatial_grid_boundaries,
+            )
         elif isinstance(positional_embedding, GridEmbedding2D):
             if self.n_dim == 2:
                 self.positional_embedding = positional_embedding
             else:
                 raise ValueError(
-                    f'Error: expected {self.n_dim}-d positional embeddings, got {positional_embedding}'
-                    )
+                    f"Error: expected {self.n_dim}-d positional embeddings, got {positional_embedding}"
+                )
         elif isinstance(positional_embedding, GridEmbeddingND):
             self.positional_embedding = positional_embedding
-        elif positional_embedding == None:
+        elif positional_embedding is None:
             self.positional_embedding = None
         else:
             raise ValueError(
                 f"Error: tried to instantiate FNO positional embedding with {positional_embedding},                              expected one of 'grid', GridEmbeddingND"
-                )
+            )
         if self.positional_embedding is not None:
             in_channels += self.n_dim
+
+        # constructing default skip maps
         if self.horizontal_skips_map is None:
             self.horizontal_skips_map = {}
             for i in range(0, n_layers // 2):
+                # example, if n_layers = 5, then 4:0, 3:1
                 self.horizontal_skips_map[n_layers - i - 1] = i
+        # self.uno_scalings may be a 1d list specifying uniform scaling factor at each layer
+        # or a 2d list, where each row specifies scaling factors along each dimention.
+        # To get the final (end to end) scaling factors we need to multiply
+        # the scaling factors (a list) of all layer.
+
         self.end_to_end_scaling_factor = [1] * len(self.uno_scalings[0])
+        # multiplying scaling factors
         for k in self.uno_scalings:
-            self.end_to_end_scaling_factor = [(i * j) for i, j in zip(self.
-                end_to_end_scaling_factor, k)]
+            self.end_to_end_scaling_factor = [
+                (i * j) for i, j in zip(self.end_to_end_scaling_factor, k)
+            ]
+        # list with a single element is replaced by the scaler.
         if len(self.end_to_end_scaling_factor) == 1:
             self.end_to_end_scaling_factor = self.end_to_end_scaling_factor[0]
         if isinstance(self.end_to_end_scaling_factor, (float, int)):
-            self.end_to_end_scaling_factor = [self.end_to_end_scaling_factor
-                ] * self.n_dim
+            self.end_to_end_scaling_factor = [self.end_to_end_scaling_factor] * self.n_dim
         if verbose:
-            print('calculated out factor', self.end_to_end_scaling_factor)
-        if domain_padding is not None and (isinstance(domain_padding, list) and
-            sum(domain_padding) > 0 or isinstance(domain_padding, (float,
-            int)) and domain_padding > 0):
-            self.domain_padding = DomainPadding(domain_padding=
-                domain_padding, padding_mode=domain_padding_mode,
-                output_scaling_factor=self.end_to_end_scaling_factor)
+            print("calculated out factor", self.end_to_end_scaling_factor)
+        if domain_padding is not None and (
+            isinstance(domain_padding, list)
+            and sum(domain_padding) > 0
+            or isinstance(domain_padding, (float, int))
+            and domain_padding > 0
+        ):
+            self.domain_padding = DomainPadding(
+                domain_padding=domain_padding,
+                padding_mode=domain_padding_mode,
+                output_scaling_factor=self.end_to_end_scaling_factor,
+            )
         else:
             self.domain_padding = None
         self.domain_padding_mode = domain_padding_mode
-        self.lifting = ChannelMLP(in_channels=in_channels, out_channels=
-            self.hidden_channels, hidden_channels=self.lifting_channels,
-            n_layers=2, n_dim=self.n_dim)
+        self.lifting = ChannelMLP(
+            in_channels=in_channels,
+            out_channels=self.hidden_channels,
+            hidden_channels=self.lifting_channels,
+            n_layers=2,
+            n_dim=self.n_dim,
+        )
         self.fno_blocks = paddle.nn.LayerList(sublayers=[])
         self.horizontal_skips = paddle.nn.LayerDict(sublayers={})
         prev_out = self.hidden_channels
         for i in range(self.n_layers):
             if i in self.horizontal_skips_map.keys():
-                prev_out = prev_out + self.uno_out_channels[self.
-                    horizontal_skips_map[i]]
-            self.fno_blocks.append(self.operator_block(in_channels=prev_out,
-                out_channels=self.uno_out_channels[i], n_modes=self.
-                uno_n_modes[i], use_channel_mlp=use_channel_mlp,
-                channel_mlpdropout=channel_mlpdropout, channel_mlpexpansion
-                =channel_mlpexpansion, output_scaling_factor=[self.
-                uno_scalings[i]], non_linearity=non_linearity, norm=norm,
-                preactivation=preactivation, fno_skip=fno_skip,
-                channel_mlpskip=channel_mlpskip, incremental_n_modes=
-                incremental_n_modes, rank=rank, SpectralConv=self.
-                integral_operator, fft_norm=fft_norm, fixed_rank_modes=
-                fixed_rank_modes, implementation=implementation, separable=
-                separable, factorization=factorization,
-                decomposition_kwargs=decomposition_kwargs,
-                joint_factorization=joint_factorization, normalizer=normalizer)
+                prev_out = prev_out + self.uno_out_channels[self.horizontal_skips_map[i]]
+            self.fno_blocks.append(
+                self.operator_block(
+                    in_channels=prev_out,
+                    out_channels=self.uno_out_channels[i],
+                    n_modes=self.uno_n_modes[i],
+                    use_channel_mlp=use_channel_mlp,
+                    channel_mlpdropout=channel_mlpdropout,
+                    channel_mlpexpansion=channel_mlpexpansion,
+                    output_scaling_factor=[self.uno_scalings[i]],
+                    non_linearity=non_linearity,
+                    norm=norm,
+                    preactivation=preactivation,
+                    fno_skip=fno_skip,
+                    channel_mlpskip=channel_mlpskip,
+                    incremental_n_modes=incremental_n_modes,
+                    rank=rank,
+                    SpectralConv=self.integral_operator,
+                    fft_norm=fft_norm,
+                    fixed_rank_modes=fixed_rank_modes,
+                    implementation=implementation,
+                    separable=separable,
+                    factorization=factorization,
+                    decomposition_kwargs=decomposition_kwargs,
+                    joint_factorization=joint_factorization,
+                    normalizer=normalizer,
                 )
+            )
             if i in self.horizontal_skips_map.values():
-                self.horizontal_skips[str(i)] = skip_connection(self.
-                    uno_out_channels[i], self.uno_out_channels[i],
-                    skip_type=horizontal_skip, n_dim=self.n_dim)
+                self.horizontal_skips[str(i)] = skip_connection(
+                    self.uno_out_channels[i],
+                    self.uno_out_channels[i],
+                    skip_type=horizontal_skip,
+                    n_dim=self.n_dim,
+                )
             prev_out = self.uno_out_channels[i]
-        self.projection = ChannelMLP(in_channels=prev_out, out_channels=
-            out_channels, hidden_channels=self.projection_channels,
-            n_layers=2, n_dim=self.n_dim, non_linearity=non_linearity)
+        self.projection = ChannelMLP(
+            in_channels=prev_out,
+            out_channels=out_channels,
+            hidden_channels=self.projection_channels,
+            n_layers=2,
+            n_dim=self.n_dim,
+            non_linearity=non_linearity,
+        )
 
     def forward(self, x, **kwargs):
         if self.positional_embedding is not None:
@@ -231,26 +297,26 @@ class UNO(paddle.nn.Layer):
         x = self.lifting(x)
         if self.domain_padding is not None:
             x = self.domain_padding.pad(x)
-        output_shape = [int(round(i * j)) for i, j in zip(tuple(x.shape)[-
-            self.n_dim:], self.end_to_end_scaling_factor)]
+        output_shape = [
+            int(round(i * j))
+            for i, j in zip(tuple(x.shape)[-self.n_dim :], self.end_to_end_scaling_factor)
+        ]
         skip_outputs = {}
         cur_output = None
         for layer_idx in range(self.n_layers):
             if layer_idx in self.horizontal_skips_map.keys():
                 skip_val = skip_outputs[self.horizontal_skips_map[layer_idx]]
-                output_scaling_factors = [(m / n) for m, n in zip(tuple(x.
-                    shape), tuple(skip_val.shape))]
-                output_scaling_factors = output_scaling_factors[-1 * self.
-                    n_dim:]
-                t = resample(skip_val, output_scaling_factors, list(range(-
-                    self.n_dim, 0)))
+                output_scaling_factors = [
+                    (m / n) for m, n in zip(tuple(x.shape), tuple(skip_val.shape))
+                ]
+                output_scaling_factors = output_scaling_factors[-1 * self.n_dim :]
+                t = resample(skip_val, output_scaling_factors, list(range(-self.n_dim, 0)))
                 x = paddle.concat(x=[x, t], axis=1)
             if layer_idx == self.n_layers - 1:
                 cur_output = output_shape
             x = self.fno_blocks[layer_idx](x, output_shape=cur_output)
             if layer_idx in self.horizontal_skips_map.values():
-                skip_outputs[layer_idx] = self.horizontal_skips[str(layer_idx)
-                    ](x)
+                skip_outputs[layer_idx] = self.horizontal_skips[str(layer_idx)](x)
         if self.domain_padding is not None:
             x = self.domain_padding.unpad(x)
         x = self.projection(x)

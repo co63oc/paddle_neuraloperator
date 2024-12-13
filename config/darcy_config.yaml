@@ -77,7 +77,7 @@ default: &DEFAULT
   wandb:
     log: False
     name: None # If None, config will be used but you can override it here
-    group: '' 
+    group: ''
     project: ""
     entity: "" # put your username here
     sweep: False

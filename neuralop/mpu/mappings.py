@@ -1,13 +1,30 @@
+# coding=utf-8
+# Copyright (c) 2021, NVIDIA CORPORATION.  All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import paddle
-import types
-from typing import Any
+
 from .comm import get_model_parallel_group
-from .helpers import split_tensor_along_dim
+
+# helper functions
+from .helpers import _gather
 from .helpers import _reduce
 from .helpers import _split
-from .helpers import _gather
+from .helpers import split_tensor_along_dim  # noqa
 
 
+# model parallel
 class _CopyToModelParallelRegion(paddle.autograd.PyLayer):
     """Pass the input to the model parallel region."""
 
@@ -54,8 +71,7 @@ class _ScatterToModelParallelRegion(paddle.autograd.PyLayer):
 
     @staticmethod
     def backward(ctx, grad_output):
-        return _gather(grad_output, ctx.dim, group=get_model_parallel_group()
-            ), None
+        return _gather(grad_output, ctx.dim, group=get_model_parallel_group()), None
 
 
 class _GatherFromModelParallelRegion(paddle.autograd.PyLayer):
@@ -72,10 +88,13 @@ class _GatherFromModelParallelRegion(paddle.autograd.PyLayer):
 
     @staticmethod
     def backward(ctx, grad_output):
-        return _split(grad_output, ctx.dim, group=get_model_parallel_group()
-            ), None
+        return _split(grad_output, ctx.dim, group=get_model_parallel_group()), None
 
 
+# -----------------
+# Helper functions.
+# -----------------
+# matmul parallel
 def copy_to_model_parallel_region(input_):
     return _CopyToModelParallelRegion.apply(input_)
 

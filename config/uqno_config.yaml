@@ -92,7 +92,7 @@ default: &DEFAULT
   wandb:
     log: True
     name: train-uqno # If None, config will be used but you can override it here
-    group: '' 
+    group: ''
     project: "uqno-darcy"
     entity: "YOUR_NAME" # put your username here
     sweep: False

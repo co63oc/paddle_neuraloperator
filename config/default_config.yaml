@@ -28,7 +28,7 @@ default: &DEFAULT
     norm: None
     skip: 'soft-gating'
     implementation: 'reconstructed'
-    
+
     use_channel_mlp: 1
     channel_mlp_expansion: 0.5
     channel_mlp_dropout: 0
@@ -66,7 +66,7 @@ default: &DEFAULT
     n_train: 10000
     train_resolution: 128
     n_tests: [2000, 1000] #, 1000]
-    test_resolutions: [128, 1024] #, 1024] 
+    test_resolutions: [128, 1024] #, 1024]
     test_batch_sizes: [16, 4] #, 1]
     encode_input: True
     encode_output: False
@@ -84,7 +84,7 @@ default: &DEFAULT
   wandb:
     log: True
     name: None # If None, config will be used but you can override it here
-    group: 'super-resolution' 
+    group: 'super-resolution'
     project: "Refactored-TFNO"
     entity: "nvr-ai-algo" # put your username here
     sweep: False
@@ -105,7 +105,7 @@ original_fno:
     fft_norm: 'forward'
     norm: None
     skip: 'linear'
-    
+
     use_channel_mlp: 0
     channel_mlp:
     channel_mlp_expansion: 0.5
@@ -120,8 +120,8 @@ original_fno:
     log: False
     name: None # If None, config will be used but you can override it here
     group: 'wandb_group'
-    
-  
+
+
 distributed_mg_tucker:
   tfno2d:
     factorization: Tucker
@@ -139,4 +139,3 @@ distributed_mg_tucker:
     levels: 1
     padding: 16
     stitching: True
-
