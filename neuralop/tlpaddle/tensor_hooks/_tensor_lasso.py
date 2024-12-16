@@ -8,7 +8,7 @@ from ..factorized_tensors import TTTensor
 from ..factorized_tensors import TuckerTensor
 from ..utils import ParameterList
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 class TensorLasso:

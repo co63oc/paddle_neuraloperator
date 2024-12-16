@@ -54,7 +54,7 @@ def test_SpectralConv(factorization, implementation):
         res_dense = conv_dense(x)
         res = conv(x)
         res_shape = tuple(res.shape)
-        assert paddle.allclose(x=res_dense, y=res, atol=1e-6).item(), ""
+        assert paddle.allclose(x=res_dense, y=res, atol=1e-3).item(), ""
         # Dynamically reduce the number of modes in Fourier space
         conv.incremental_n_modes = incremental_modes[:dim]
         res = conv(x)

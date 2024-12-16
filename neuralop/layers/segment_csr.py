@@ -45,7 +45,8 @@ def segment_csr(
     else:
         if use_scatter:
             print(
-                "Warning: use_scatter is True but paddle_scatter is not properly built.                   Defaulting to naive Paddle implementation"
+                "Warning: use_scatter is True but torch_scatter is not properly built. \
+                  Defaulting to naive PyTorch implementation"
             )
         # if batched, shape [b, n_reps, channels]
         # otherwise shape [n_reps, channels]

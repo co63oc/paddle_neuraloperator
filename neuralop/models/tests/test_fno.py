@@ -89,7 +89,7 @@ def test_tfno(
     for param in model.parameters():
         if param.grad is None:
             n_unused_params += 1
-    assert n_unused_params >= 0, f"{n_unused_params} parameters were unused!"
+    assert n_unused_params == 0, f"{n_unused_params} parameters were unused!"
 
 
 @pytest.mark.parametrize(

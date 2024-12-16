@@ -1,7 +1,7 @@
 import tensorly as tl
 from tensorly.tenalg.tenalg_utils import _validate_contraction_modes
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 

@@ -9,13 +9,12 @@ from paddle_harmonics import RealSHT
 from tensorly.plugins import use_opt_einsum
 
 import neuralop
-from neuralop import paddle_aux
 from neuralop.utils import validate_scaling_factor
 
 from .base_spectral_conv import BaseSpectralConv
 from .spectral_convolution import SubConv
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 use_opt_einsum("optimal")
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -41,7 +40,7 @@ def _contract_dense(x, weight, separable=False, dhconv=True):
     eq = "".join(x_syms) + "," + "".join(weight_syms) + "->" + "".join(out_syms)
     if not paddle.is_tensor(x=weight):
         weight = weight.to_tensor()
-    return paddle_aux.tl_einsum(eq, x, weight)
+    return tl.einsum(eq, x, weight)
 
 
 def _contract_dense_separable(x, weight, separable=True, dhconv=False):

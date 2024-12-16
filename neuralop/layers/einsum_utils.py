@@ -3,7 +3,7 @@ import paddle
 import tensorly as tl
 from tensorly.plugins import use_opt_einsum
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 use_opt_einsum("optimal")
 
 

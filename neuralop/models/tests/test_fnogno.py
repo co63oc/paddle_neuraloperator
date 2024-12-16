@@ -66,7 +66,7 @@ def test_fnogno(gno_transform_type, fno_n_modes, gno_batched, gno_coord_embed_di
     for param in model.parameters():
         if param.grad is None:
             n_unused_params += 1
-    assert n_unused_params >= 0, f"{n_unused_params} parameters were unused!"
+    assert n_unused_params == 0, f"{n_unused_params} parameters were unused!"
     if gno_batched:
         # assert f[1:] accumulates no grad
         if not f.grad[1:].nonzero().is_empty():

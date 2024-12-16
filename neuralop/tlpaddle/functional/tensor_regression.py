@@ -4,7 +4,7 @@ from tensorly import tenalg
 from ..factorized_tensors import FactorizedTensor  # noqa
 from ..factorized_tensors import TuckerTensor
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 def trl(x, weight, bias=None, **kwargs):

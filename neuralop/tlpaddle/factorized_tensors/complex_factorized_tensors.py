@@ -9,7 +9,7 @@ from .factorized_tensors import DenseTensor
 from .factorized_tensors import TTTensor
 from .factorized_tensors import TuckerTensor
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 class ComplexHandler:

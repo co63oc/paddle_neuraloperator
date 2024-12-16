@@ -6,7 +6,7 @@ import numpy as np
 import paddle
 import tensorly as tl
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 def tensor_init(tensor, std=0.02):

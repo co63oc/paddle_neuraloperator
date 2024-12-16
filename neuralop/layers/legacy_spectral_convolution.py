@@ -22,7 +22,7 @@ from .base_spectral_conv import BaseSpectralConv
 from .einsum_utils import einsum_complexhalf  # noqa
 from .resample import resample
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 use_opt_einsum("optimal")
 
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -51,9 +51,7 @@ def _contract_dense(x, weight, separable=False):
     #     return einsum_complexhalf(eq, x, weight)
     # else:
     #     return tl.einsum(eq, x, weight)
-    ret = tl.einsum(eq, x.numpy(), weight)
-    ret = paddle.to_tensor(ret)
-    return ret
+    return tl.einsum(eq, x, weight)
 
 
 def _contract_dense_separable(x, weight, separable=True):

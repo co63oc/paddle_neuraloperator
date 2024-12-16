@@ -3,6 +3,8 @@ from flaky import flaky
 
 from ..normalizers import UnitGaussianNormalizer
 
+paddle.device.set_device("gpu:0")
+
 
 @flaky(max_runs=4, min_passes=3)
 def test_UnitGaussianNormalizer_created_from_stats(eps=1e-06):

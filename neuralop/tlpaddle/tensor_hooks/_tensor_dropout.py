@@ -6,7 +6,7 @@ from ..factorized_tensors import CPTensor
 from ..factorized_tensors import TTTensor
 from ..factorized_tensors import TuckerTensor
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 class TensorDropout:

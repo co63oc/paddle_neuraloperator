@@ -209,19 +209,8 @@ def meshgrid_fix(*args):
 import tensorly as tl  # noqa
 from tensorly.plugins import use_opt_einsum  # noqa
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 use_opt_einsum("optimal")
-
-
-def tl_einsum(eq, *args):
-    new_args = []
-    for arg in args:
-        if isinstance(arg, paddle.Tensor):
-            new_args.append(arg.numpy())
-        else:
-            new_args.append(arg)
-    ret = tl.einsum(eq, *new_args)
-    return paddle.to_tensor(ret)
 
 
 def sqrt(x):

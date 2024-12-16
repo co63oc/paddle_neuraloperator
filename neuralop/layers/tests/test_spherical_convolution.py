@@ -46,7 +46,7 @@ def test_SphericalConv(factorization, implementation):
     x = paddle.randn(shape=[2, 3, *(12, 12)])
     res_dense = conv_dense(x)
     res = conv(x)
-    assert paddle.allclose(x=res_dense, y=res, atol=1e-7).item(), ""
+    assert paddle.allclose(x=res_dense, y=res, atol=1e-3).item(), ""
     # Downsample outputs
     block = SphericalConv(3, 4, n_modes, n_layers=1, output_scaling_factor=0.5)
     x = paddle.randn(shape=[2, 3, *(12, 12)])

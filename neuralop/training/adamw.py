@@ -103,9 +103,7 @@ class AdamW(paddle.optimizer.Optimizer):
             state["step"] += 1
             # Decay the first and second moment running average coefficient
             # In-place operations to update the averages at the same time
-            exp_avg.multiply_(y=paddle.to_tensor(beta1)).add_(
-                y=paddle.to_tensor((1.0 - beta1) * grad)
-            )
+            exp_avg.multiply_(y=paddle.to_tensor(beta1)).add_(y=(1.0 - beta1) * grad)
             if paddle.is_complex(x=grad):
                 exp_avg_sq.multiply_(y=paddle.to_tensor(beta2)).add_(
                     (1.0 - beta2) * grad * grad.conj()
@@ -120,7 +118,7 @@ class AdamW(paddle.optimizer.Optimizer):
                 step_size = step_size * math.sqrt(bias_correction2) / bias_correction1
             # compute norm gradient
             norm_grad = exp_avg / denom
-            p.add_(y=paddle.to_tensor(-step_size * norm_grad))
+            p.add_(y=(-step_size * norm_grad))
             # Just adding the square of the weights to the loss function is *not*
             # the correct way of using L2 regularization/weight decay with Adam,
             # since that will interact with the m and v parameters in strange ways.
@@ -130,5 +128,5 @@ class AdamW(paddle.optimizer.Optimizer):
             # of the weights to the loss with plain (non-momentum) SGD.
             # Add weight decay at the end (fixed version)
             if group["weight_decay"] > 0.0:
-                p.add_(y=paddle.to_tensor(-group["lr"] * group["weight_decay"] * p))
+                p.add_(y=(-group["lr"] * group["weight_decay"] * p))
         return loss

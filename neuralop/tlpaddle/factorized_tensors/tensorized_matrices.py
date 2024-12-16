@@ -18,7 +18,7 @@ from .factorized_tensors import CPTensor
 from .factorized_tensors import DenseTensor
 from .factorized_tensors import TuckerTensor
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 einsum_symbols_set = set(einsum_symbols)

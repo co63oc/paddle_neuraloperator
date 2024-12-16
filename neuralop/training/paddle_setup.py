@@ -63,11 +63,7 @@ def setup(config):
             seed = config.distributed.seed
     # Set device, random seed and optimization
     if paddle.device.cuda.device_count() >= 1:
-        paddle.device.set_device(
-            device="gpu:" + str(device.index)
-            if isinstance(device.index, int)
-            else str(device.index).replace("cuda", "gpu")
-        )
+        paddle.device.set_device("gpu:0")
         if "seed" in config.distributed:
             paddle.seed(seed=seed)
         increase_l2_fetch_granularity()

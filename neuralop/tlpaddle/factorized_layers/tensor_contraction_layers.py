@@ -7,7 +7,7 @@ import paddle
 import tensorly as tl
 from tensorly import tenalg
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 class TCL(paddle.nn.Layer):

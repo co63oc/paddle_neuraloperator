@@ -12,7 +12,7 @@ from .factorized_linear import linear_blocktt
 from .factorized_linear import linear_cp
 from .factorized_linear import linear_tucker
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 def factorized_linear(x, weight, bias=None, in_features=None, implementation="factorized"):

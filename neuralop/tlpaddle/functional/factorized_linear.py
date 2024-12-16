@@ -3,7 +3,7 @@ import tensorly as tl
 from .factorized_tensordot import tensor_dot_cp
 from .factorized_tensordot import tensor_dot_tucker
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 def linear_tucker(tensor, tucker_matrix, transpose=True, channels_first=True):

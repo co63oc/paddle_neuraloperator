@@ -98,7 +98,7 @@ def test_gino(gno_transform_type, gno_coord_dim, gno_coord_embed_dim, batch_size
     for param in model.parameters():
         if param.grad is None:
             n_unused_params += 1
-    assert n_unused_params >= 0, f"{n_unused_params} parameters were unused!"
+    assert n_unused_params == 0, f"{n_unused_params} parameters were unused!"
     if batch_size > 1:
         # assert f[1:] accumulates no grad
         if not x.grad[1:].nonzero().is_empty():

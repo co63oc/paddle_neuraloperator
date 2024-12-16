@@ -8,7 +8,7 @@ import neuralop.paddle_aux  # noqa
 from ..factorized_tensors import FactorizedTensor
 from ..functional.tensor_regression import trl
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 class TRL(paddle.nn.Layer):

@@ -8,14 +8,13 @@ import tensorly as tl
 from tensorly.plugins import use_opt_einsum
 
 import neuralop
-from neuralop import paddle_aux
 
 from ..utils import validate_scaling_factor
 from .base_spectral_conv import BaseSpectralConv
 from .einsum_utils import einsum_complexhalf  # noqa
 from .resample import resample
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 use_opt_einsum("optimal")
 
 einsum_symbols = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
@@ -43,7 +42,7 @@ def _contract_dense(x, weight, separable=False):
     #     return einsum_complexhalf(eq, x, weight)
     # else:
     #     return tl.einsum(eq, x, weight)
-    return paddle_aux.tl_einsum(eq, x, weight)
+    return tl.einsum(eq, x, weight)
 
 
 def _contract_dense_separable(x, weight, separable):
@@ -97,7 +96,7 @@ def _contract_tucker(x, tucker_weight, separable=False):
     #         .factors)
     # else:
     #     return tl.einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
-    return paddle_aux.tl_einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
+    return tl.einsum(eq, x, tucker_weight.core, *tucker_weight.factors)
 
 
 def _contract_tt(x, tt_weight, separable=False):
@@ -119,7 +118,7 @@ def _contract_tt(x, tt_weight, separable=False):
     #     return einsum_complexhalf(eq, x, *tt_weight.factors)
     # else:
     #     return tl.einsum(eq, x, *tt_weight.factors)
-    return paddle_aux.tl_einsum(eq, x, *tt_weight.factors)
+    return tl.einsum(eq, x, *tt_weight.factors)
 
 
 def get_contract_fun(weight, implementation="reconstructed", separable=False):

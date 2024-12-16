@@ -6,7 +6,7 @@ import tensorly as tl
 
 import neuralop.paddle_aux  # noqa
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 def _ensure_tuple(value):

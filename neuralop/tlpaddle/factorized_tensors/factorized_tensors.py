@@ -13,7 +13,7 @@ from neuralop import paddle_aux
 from ..utils import FactorList
 from .core import FactorizedTensor
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 class DenseTensor(FactorizedTensor, name="Dense"):
@@ -41,17 +41,11 @@ class DenseTensor(FactorizedTensor, name="Dense"):
 
     @classmethod
     def from_tensor(cls, tensor, rank="same", **kwargs):
-        return cls(
-            paddle.base.framework.EagerParamBase.from_tensor(
-                tensor=paddle.to_tensor(tl.copy(tensor))
-            )
-        )
+        return cls(paddle.base.framework.EagerParamBase.from_tensor(tensor=tl.copy(tensor)))
 
     def init_from_tensor(self, tensor, l2_reg=1e-05, **kwargs):
         with paddle.no_grad():
-            self.tensor = paddle.base.framework.EagerParamBase.from_tensor(
-                tensor=paddle.to_tensor(tl.copy(tensor))
-            )
+            self.tensor = paddle.base.framework.EagerParamBase.from_tensor(tensor=tl.copy(tensor))
         return self
 
     @property
@@ -194,10 +188,7 @@ class CPTensor(FactorizedTensor, name="CP"):
         return self.weights, self.factors
 
     def to_tensor(self):
-        tmp1, tmp2 = self.decomposition
-        tmp1 = tmp1.numpy()
-        ret = tl.cp_to_tensor((tmp1, tmp2))
-        return paddle.to_tensor(ret)
+        return tl.cp_to_tensor(self.decomposition)
 
     def normal_(self, mean=0, std=1):
         super().normal_(mean=mean, std=std)
@@ -374,7 +365,7 @@ class TuckerTensor(FactorizedTensor, name="Tucker"):
         return self.core, self.factors
 
     def to_tensor(self):
-        return paddle.to_tensor(tl.tucker_to_tensor(self.decomposition))
+        return tl.tucker_to_tensor(self.decomposition)
 
     def normal_(self, mean=0, std=1):
         if mean != 0:
@@ -480,7 +471,7 @@ class TTTensor(FactorizedTensor, name="TT"):
         return self.factors
 
     def to_tensor(self):
-        return paddle.to_tensor(tl.tt_to_tensor(self.decomposition))
+        return tl.tt_to_tensor(self.decomposition)
 
     def normal_(self, mean=0, std=1):
         if mean != 0:

@@ -6,7 +6,7 @@ from .tensorized_matrices import CPTensorized
 from .tensorized_matrices import DenseTensorized
 from .tensorized_matrices import TuckerTensorized
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 class ComplexDenseTensorized(ComplexHandler, DenseTensorized, name="ComplexDense"):

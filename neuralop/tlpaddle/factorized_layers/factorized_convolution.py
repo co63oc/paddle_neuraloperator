@@ -12,7 +12,7 @@ from ..factorized_tensors import FactorizedTensor
 from ..factorized_tensors import TTTensor
 from ..functional.convolution import _get_factorized_conv
 
-tl.set_backend("numpy")
+tl.set_backend("paddle")
 
 
 def _ensure_list(order, value):
